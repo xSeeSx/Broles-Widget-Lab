@@ -36,9 +36,9 @@ Abre `http://localhost:4173/`.
 
 ## GitHub Pages
 
-URL publica: <https://xseesx.github.io/losbroles-widget-lab/>
+URL publica: <https://xseesx.github.io/Broles-Widget-Lab/>
 
-El despliegue automatico se ejecuta con GitHub Actions desde `.github/workflows/deploy-pages.yml` y publica la web completa desde la raiz del repositorio. La aplicacion usa rutas relativas y funciona servida desde la ruta de un repositorio, por ejemplo `/losbroles-widget-lab/`.
+El despliegue automatico se ejecuta con GitHub Actions desde `.github/workflows/deploy-pages.yml` y publica la web completa desde la raiz del repositorio. La aplicacion usa rutas relativas y funciona servida desde la ruta de un repositorio, por ejemplo `/Broles-Widget-Lab/`.
 
 ## Funcionamiento
 
