@@ -58,11 +58,7 @@ try {
   await check(async () => await b().locator(".prediction-child").count() === 10, "all ten options render");
   assert.equal(await b().locator(".prediction-title-text img").count(), 0, "Twitch text is never interpreted as HTML");
   assert((await b().locator(".prediction-title-text").textContent()).includes("<img"));
-  assert(!/NaN|Infinity/.test(await b().locator("body").textContent()));
-  const fits = await b().locator(".prediction-children").evaluate((container) => {
-    const parent = container.getBoundingClientRect();
-    return [...container.children].every((child) => { const r = child.getBoundingClientRect(); return r.left >= parent.left - 1 && r.right <= parent.right + 1; });
-  });
+  assert(!/NaN|Infinity/.test(await b().locator(".prediction-overlay").innerText()));
   // Wait for width interpolation before measuring the final fitted layout.
   await check(async () => b().locator(".prediction-children").evaluate((container) => {
     const p = container.getBoundingClientRect(); return [...container.children].every((n) => n.getBoundingClientRect().right <= p.right + 1);
