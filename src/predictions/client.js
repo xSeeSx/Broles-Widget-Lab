@@ -48,7 +48,7 @@ function createOutcome(outcome, index, animate) {
   node.className = "prediction-child";
   node.dataset.outcomeId = outcome.id;
   // Only this fixed template is HTML. All Twitch titles and numbers use textContent.
-  node.innerHTML = '<div class="progress-bar-stats"><div class="progress-bar-stats-child"><div class="progress-bar-text"></div></div></div><div class="progress-bar"><div class="prediction-outcome progress-bar-foreground-1"><div class="outcome-shade"></div></div><div class="progress-bar-percent-text"></div></div><div class="progress-bar-multiplier"><i class="fa-regular fa-star" aria-hidden="true"></i> <span class="multiplier-text"></span></div><div class="progress-bar-users"><span class="progress-bar-users-text"><i class="fa-regular fa-user" aria-hidden="true"></i> <span class="users-count"></span></span></div>';
+  node.innerHTML = '<div class="progress-bar-stats"><div class="progress-bar-stats-child"><div class="progress-bar-text"></div></div></div><div class="progress-bar"><div class="prediction-outcome progress-bar-foreground-1"><div class="outcome-shade"></div></div><div class="progress-bar-percent-text"></div></div><div class="progress-bar-multiplier"><i class="fa-regular fa-star" aria-hidden="true"></i> <span class="multiplier-text"></span></div><div class="progress-bar-users"><span class="progress-bar-users-text"><i class="fa-regular fa-user" aria-hidden="true"></i> </span></div>';
   if (animate) {
     node.classList.add("slideIn");
     node.style.animationDelay = (500 + (index + 1) * 150) + "ms";
@@ -128,7 +128,7 @@ function render() {
     // Before Twitch supplies totals, retain the original equal initial split.
     // This is a presentation fallback; unknown counters stay null in state/storage.
     node.querySelector(".progress-bar-percent-text").textContent = Math.round(percents[index]) + "%";
-    node.querySelector(".users-count").textContent = outcome.users === null ? "…" : outcome.users.toLocaleString("en-US");
+    node.querySelector(".progress-bar-users-text").lastChild.textContent = " " + (outcome.users === null ? "…" : outcome.users.toLocaleString("en-US"));
     const multiplier = total > 0 && outcome.channel_points > 0 ? total / outcome.channel_points : null;
     node.querySelector(".multiplier-text").textContent = "x" + (multiplier === null ? "1.0" : multiplier.toFixed(1));
   });

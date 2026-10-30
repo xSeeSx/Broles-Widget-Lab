@@ -2083,6 +2083,10 @@ function handlePredictionOutcomeInput(event) {
   }
 
   state.prediction.outcomes[index][field] = clampInteger(input.value, 0, 999999999);
+  if (elements.predictionVoteFeedback) {
+    elements.predictionVoteFeedback.hidden = false;
+    elements.predictionVoteFeedback.textContent = "Cambios sin enviar. Pulsa Enviar votos para aplicarlos al widget.";
+  }
   renderPredictionStateSummary();
 }
 
