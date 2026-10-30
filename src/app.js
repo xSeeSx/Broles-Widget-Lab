@@ -534,6 +534,25 @@ function attachOverlayFrameLoadHandler(frame, overlayId) {
 
 function setupCollapsibleSections() {
   const sections = Array.from(document.querySelectorAll(".control-panel > .panel-section"));
+  const navigation = document.querySelector("#toolSelect");
+  for (const section of sections.slice(1)) {
+    const option = document.createElement("option");
+    option.value = section.dataset.panelTitle;
+    option.textContent = getPanelTitle(section);
+    navigation.append(option);
+  }
+  navigation.addEventListener("change", () => {
+    const selected = sections.find((section) => section.dataset.panelTitle === navigation.value);
+    if (!selected) return;
+    for (const section of sections.slice(1)) {
+      const collapsed = section !== selected;
+      section.querySelector(".panel-content").hidden = collapsed;
+      section.classList.toggle("is-collapsed", collapsed);
+      section.querySelector(".panel-toggle").setAttribute("aria-expanded", String(!collapsed));
+    }
+    selected.scrollIntoView({ block: "start" });
+    navigation.value = "";
+  });
 
   sections.forEach((section) => {
     if (section.dataset.collapsibleReady === "true") {
@@ -567,6 +586,17 @@ function setupCollapsibleSections() {
       toggle.setAttribute("aria-expanded", String(!nextCollapsed));
     });
   });
+}
+
+function focusWidgetControls(widgetId) {
+  const section = document.querySelector(".prediction-panel");
+  const content = section.querySelector(".panel-content");
+  const expanded = widgetId === "prediccion";
+  content.hidden = !expanded;
+  section.classList.toggle("is-collapsed", !expanded);
+  section.querySelector(".panel-toggle").setAttribute("aria-expanded", String(expanded));
+  // A widget change should return to its main actions, even after editing a long form.
+  document.querySelector(".control-panel").scrollTop = 0;
 }
 
 function getPanelTitle(section) {
@@ -1154,6 +1184,7 @@ async function loadWidget(widgetId) {
   state.importPreview = null;
   clearImportPreviewOption();
   elements.widgetSelect.value = widget.id;
+  focusWidgetControls(widget.id);
 
   try {
     const entryUrl = resolveWidgetUrl(widget.html);
@@ -2014,7 +2045,18 @@ function renderPredictionStateSummary() {
   const historyCount = state.prediction.predictionHistory.length;
   const openConnections = state.worker.openConnections.size;
 
-  elements.predictionStateSummary.textContent = `Estado: ${status} | stage: ${state.prediction.currentPredictionStage || "idle"} | history: ${historyCount} | WS: ${openConnections}`;
+  const labels = { idle: "Lista para iniciar", active: "Apuestas abiertas", locked: "Apuestas bloqueadas", locked_waiting_resolution: "Esperando resolución", resolved: "Resuelta", canceled: "Cancelada", active_expired: "Plazo agotado" };
+  elements.predictionStateSummary.textContent = `${labels[status] || status} (${status}) · eventos: ${historyCount} · WS: ${openConnections}`;
+  const twitch = state.prediction.mode === "twitch";
+  const ongoing = !["idle", "resolved", "canceled"].includes(status);
+  const acceptingVotes = ["begin", "progress"].includes(state.prediction.currentPredictionStage);
+  elements.predictionBeginNormalButton.disabled = twitch && ongoing;
+  for (const button of [elements.predictionNormalProgressButton, elements.predictionSendProgressButton, elements.predictionLockButton]) {
+    button.disabled = twitch && (!ongoing || !acceptingVotes);
+  }
+  for (const button of [elements.predictionResolveWinnerButton, elements.predictionEndCanceledButton]) {
+    button.disabled = twitch && !ongoing;
+  }
 }
 
 function handlePredictionOutcomeInput(event) {

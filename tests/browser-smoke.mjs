@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
+import { runControlTests } from "./controls-suite.mjs";
 
 await mkdir("test-results", { recursive: true });
 const browser = await chromium.launch();
@@ -30,14 +31,23 @@ try {
   await check(async () => (await frameA().locator("#demoMessage").textContent()) === "onWidgetLoad received", "Demo initializes automatically");
   await page.screenshot({ path: "test-results/demo.png", fullPage: true });
 
+  await runControlTests({ page, frameA, check });
+
   await page.locator("#widgetSelect").selectOption("marco");
   await check(async () => (await frameA().locator("#widgetContainer video").count()) === 4, "Marco DOM loads");
   await page.screenshot({ path: "test-results/marco.png", fullPage: true });
 
   await page.locator("#widgetSelect").selectOption("prediccion");
   await check(async () => (await page.locator("#appStatus").textContent()).startsWith("Cargado:"), "Prediction document loaded");
-  await openPanel("Prediction Lab");
+  await page.setViewportSize({ width: 1366, height: 768 });
+  assert.equal(await page.locator('.prediction-panel .panel-toggle').getAttribute("aria-expanded"), "true", "Selecting prediction opens its controls automatically");
+  const startBox = await page.locator("#predictionBeginNormalButton").boundingBox();
+  assert(startBox.y >= 0 && startBox.y + startBox.height < 768, "Start is on screen without scrolling at 1366x768");
+  assert(await page.locator("#predictionLockButton").isDisabled(), "Lock is disabled before start");
+  await page.screenshot({ path: "test-results/compact-prediction-ready.png" });
   await page.locator("#predictionBeginNormalButton").click();
+  assert(await page.locator("#predictionBeginNormalButton").isDisabled(), "Second start is visibly blocked");
+  assert(await page.locator("#predictionLockButton").isEnabled(), "Lock becomes available after start");
   await check(async () => (await frameA().locator("body").textContent()).includes("Quien gana"), "Production prediction receives begin over mocked Worker socket");
   await page.screenshot({ path: "test-results/prediccion.png", fullPage: true });
 
@@ -100,6 +110,13 @@ try {
   await page.locator("#overlayActiveSelect").selectOption("B");
   await page.locator("#overlayHiddenDeliveryMode").selectOption("deliver");
   await page.locator("[data-prediction-count='10']").click();
+  await page.locator('#predictionOutcomes input[data-outcome-index="9"][data-outcome-field="channelPoints"]').scrollIntoViewIfNeeded();
+  const pinned = await page.locator("#predictionBeginNormalButton").evaluate((node) => {
+    const r = node.getBoundingClientRect();
+    return r.top >= 0 && r.bottom < innerHeight && node.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+  });
+  assert(pinned, "Start remains usable while editing the tenth option");
+  await page.screenshot({ path: "test-results/compact-ten-options.png" });
   await page.locator("#predictionBeginNormalButton").click();
   await check(async () => (await wire(frameA)).event?.outcomes.length === 10 && (await wire(frameB)).event?.outcomes.length === 10,
     "Ten-option begin broadcasts to A and B");
@@ -151,6 +168,7 @@ try {
   assert(canceledPredictors.every((predictor) => predictor.channel_points_won === 0), "Canceled predictions award zero points, not null");
 
   await page.locator("#predictionStressMode").check();
+  await page.locator("#predictionStressScenarios > summary").click();
   await page.locator("#predictionBeginOneSecondButton").click();
   await page.locator("#predictionActiveExpiredButton").click();
   await check(async () => (await page.locator("#predictionStateSummary").textContent()).includes("active_expired"), "Stress mode can force active_expired");
@@ -160,6 +178,7 @@ try {
   await check(async () => (await frameA().locator("#value").textContent()) === expected, "Full lab reload preserves SE storage");
   await page.screenshot({ path: "test-results/storage-probe.png", fullPage: true });
 
+  await page.setViewportSize({ width: 1600, height: 1100 });
   await page.goto("http://127.0.0.1:4173/?view=obs&widget=prediccion", { waitUntil: "networkidle" });
   await check(async () => (await frameA().locator("#loadCount").textContent()) === "1", "OBS view loads the requested widget with the same harness");
   assert.equal(await page.locator(".control-panel").isVisible(), false, "Clean OBS view has no controls drawn");

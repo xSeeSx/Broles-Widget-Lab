@@ -2,6 +2,12 @@
 
 Laboratorio estatico para probar widgets de StreamElements y Twitch sin emitir en directo. Usa HTML, CSS y JavaScript vanilla, no requiere tokens reales, OAuth, secretos ni APIs privadas.
 
+## Iniciar una predicción
+
+Selecciona **Predicción** en Widget. Se abre **Prediction Lab** justo debajo: pulsa **Iniciar predicción**. Después puedes **Aplicar votos**, **Enviar votos**, **Bloquear apuestas** y elegir la opción ganadora antes de **Resolver**, o pulsar **Cancelar**. La barra de acciones permanece visible al desplazarte por las opciones. En modo Twitch, los botones incompatibles con el estado actual se desactivan.
+
+Los paneles secundarios empiezan plegados. El menú **Ir a herramienta…** de la cabecera abre directamente cualquier panel. Los atajos y escenarios de estrés están dentro de Prediction Lab; las pruebas de escenas y reconexión están en Overlay / OBS scenarios. Para editar título, duración u opciones de una nueva predicción, resuelve o cancela la anterior.
+
 ## Estructura
 
 ```text

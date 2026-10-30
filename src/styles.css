@@ -103,14 +103,15 @@ textarea {
 }
 
 button {
-  min-height: 42px;
+  min-height: 32px;
   border: 1px solid var(--accent-strong);
   border-radius: 6px;
   background: var(--accent);
   color: #ffffff;
   cursor: pointer;
   font-weight: 650;
-  padding: 0 14px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
 }
 
 button:hover {
@@ -186,26 +187,29 @@ textarea:focus-visible {
 .control-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   min-height: 0;
   border-right: 1px solid var(--line);
   background: #fbfcfd;
   overflow: auto;
-  padding: 18px;
+  padding: 8px 12px;
+  scroll-padding-top: 190px;
 }
 
 .panel-section {
   display: grid;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 10px;
+  flex: 0 0 auto;
+  gap: 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 6px 0;
 }
 
 .panel-content {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .panel-content[hidden] {
@@ -275,12 +279,12 @@ textarea:focus-visible {
 }
 
 .select-input {
-  min-height: 42px;
+  min-height: 32px;
   padding: 0 10px;
 }
 
 .text-input {
-  min-height: 40px;
+  min-height: 32px;
   padding: 0 10px;
 }
 
@@ -314,16 +318,26 @@ textarea:focus-visible {
 }
 
 .button-stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.panel-section.button-stack {
   grid-template-columns: 1fr;
+}
+
+.panel-section.button-stack > .panel-content {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .control-group {
   display: grid;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fbfcfd;
-  padding: 10px;
+  gap: 6px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  padding: 8px 0;
 }
 
 .control-group h3,
@@ -337,9 +351,10 @@ textarea:focus-visible {
 
 .advanced-block {
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #ffffff;
-  padding: 8px 10px;
+  border-radius: 0;
+  border-width: 1px 0 0;
+  background: transparent;
+  padding: 8px 0;
 }
 
 .advanced-block summary {
@@ -411,14 +426,14 @@ textarea:focus-visible {
 }
 
 .quick-buttons button {
-  min-height: 36px;
+  min-height: 32px;
   padding: 0 8px;
   font-size: 0.8rem;
 }
 
 .prediction-panel {
   border-top: 1px solid var(--line);
-  padding-top: 16px;
+  padding-top: 6px;
 }
 
 .prediction-outcomes {
@@ -444,7 +459,7 @@ textarea:focus-visible {
 
 .worker-panel {
   border-top: 1px solid var(--line);
-  padding-top: 16px;
+  padding-top: 6px;
 }
 
 .toggle-row {
@@ -956,4 +971,43 @@ iframe[data-overlay-id] {
   .log-entry pre {
     grid-column: 1 / -1;
   }
+}
+
+/* Compact controls share one density across every tool in the sidebar. */
+.control-panel p { margin: 0; }
+.control-panel label { min-width: 0; }
+.control-panel details > summary { font-size: .8rem; cursor: pointer; }
+.widget-info[open] { display: grid; gap: 6px; }
+.widget-info[open] > :not(summary) { margin-top: 6px; }
+.control-panel .toggle-row { font-size: .8rem; gap: 6px; }
+.chat-panel label.toggle-row { display: flex; }
+.prediction-panel .segmented-controls { gap: 4px; }
+.prediction-panel .quick-buttons[aria-label="Opciones rapidas"] { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.prediction-panel .quick-buttons[aria-label="Opciones rapidas"] button { padding: 4px 2px; font-size: .72rem; }
+.prediction-outcome-row { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.prediction-actions {
+  display: grid;
+  gap: 6px;
+  position: sticky;
+  top: -8px;
+  z-index: 2;
+  background: #fbfcfd;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 5px 7px #fbfcfd;
+}
+#predictionBeginNormalButton { min-height: 36px; font-size: .9rem; }
+.prediction-state { font-size: .73rem; color: var(--muted); overflow-wrap: anywhere; }
+.prediction-resolution { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; }
+.prediction-resolution select { font-size: .78rem; padding: 0 4px; }
+button:disabled { opacity: .45; cursor: default; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (pointer: coarse) {
+  .control-panel button, .control-panel select, .control-panel input:not([type=checkbox]):not([type=radio]) { min-height: 44px; }
+}
+
+.tool-navigation { margin-left: auto; width: min(220px, 30vw); }
+@media (max-width: 900px) {
+  .app-header { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; }
+  .tool-navigation { width: min(220px, 45vw); }
 }
