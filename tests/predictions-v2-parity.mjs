@@ -72,6 +72,7 @@ try {
       await page.locator("#predictionResolveWinnerButton").click();
       await check(async () => (await inspect(page)).phase === "resolved", "resolve reaches every case");
       test.deadline = (await inspect(page)).deadline;
+      test.endedAt = test.deadline - POLICY.resultMs;
       test.baseWidth = (await inspect(page)).nodes[test.winner].width;
     }));
     await Promise.all(pages.map(async (test) => {
@@ -80,10 +81,14 @@ try {
         const state = await inspect(page);
         return state.nodes.some((node, index) => index !== winner && node.opacity > .02 && node.opacity < .98);
       }, `${count} options: losers have intermediate frames`, 5000);
+      const fadeAge = Date.now() - test.endedAt;
+      assert(fadeAge >= POLICY.fadeLosersAtMs - 100 && fadeAge < POLICY.fadeLosersAtMs + 500, `${count} options: loser fade retains original timing (${fadeAge}ms)`);
       await check(async () => {
         const state = await inspect(page), node = state.nodes[winner];
         return node.width > test.baseWidth + 3 && node.width < state.width - 3;
       }, `${count} options: winner moves through intermediate widths`, 4000);
+      const expansionAge = Date.now() - test.endedAt;
+      assert(expansionAge >= POLICY.expandWinnerAtMs - 100 && expansionAge < POLICY.expandWinnerAtMs + 500, `${count} options: winner expansion retains original timing (${expansionAge}ms)`);
       if (round === 2) await page.screenshot({ path: `test-results/parity/${count}-winner-last-expanding.png` });
       await check(async () => {
         const state = await inspect(page), node = state.nodes[winner];
@@ -109,7 +114,7 @@ try {
       await check(async () => (await inspect(page)).hidden, `${count} options: title and bars clean up`, 1800);
       const ended = await inspect(page);
       assert.equal(ended.title, ""); assert.equal(ended.nodes.length, 0);
-      results.push({ count, winner: winner + 1, direct: round === 0, deadline: test.deadline, status: "passed" });
+      results.push({ count, winner: winner + 1, direct: round === 0, fadeAge, expansionAge, deadline: test.deadline, status: "passed" });
     }));
     console.log("PASS parity result matrix round " + (round + 1));
   }

@@ -120,7 +120,10 @@ function render() {
   if (capacity > 0) widths.forEach((width, index) => { widths[index] -= overflow * Math.max(0, width - minimum) / capacity; });
   prediction.outcomes.forEach((outcome, index) => {
     const node = nodes.get(outcome.id) || createOutcome(outcome, index, entering && view.phase === "active");
-    if (view.phase !== "active") node.classList.remove("slideIn");
+    if (view.phase !== "active") {
+      node.classList.remove("slideIn");
+      node.style.animationDelay = "";
+    }
     if (!children.dataset.frozen) node.style.width = widths[index] + "px";
     if (children.dataset.frozen) {
       const left = widths.slice(0, index).reduce((sum, width) => sum + width - 10, 0);
@@ -137,6 +140,10 @@ function render() {
     node.querySelector(".progress-bar-users-text").lastChild.textContent = " " + (outcome.users === null ? view.phase === "active" ? "0" : "…" : outcome.users.toLocaleString("en-US"));
     const multiplier = total > 0 && outcome.channel_points > 0 ? total / outcome.channel_points : null;
     node.querySelector(".multiplier-text").textContent = "x" + (multiplier === null ? "1.0" : multiplier.toFixed(1));
+    // Keep the original 45px offset for normal values, and reserve more room
+    // only when a long multiplier would collide with the user metric.
+    const multiplierWidth = node.querySelector(".progress-bar-multiplier").offsetWidth;
+    node.querySelector(".progress-bar-users").style.marginRight = Math.max(45, multiplierWidth - 8) + "px";
   });
   if (view.phase === "resolved" && !children.dataset.frozen) {
     // Freeze existing nodes in place instead of requiring clones made by lock.
