@@ -76,19 +76,17 @@ function render() {
   overlay.dataset.phase = view.phase;
   overlay.dataset.revision = String(snapshot.revision);
   overlay.dataset.hideAt = view.hideAt ? String(view.hideAt) : "";
-  // A duplicated result updates its data but never restarts its animation or deadline.
-  if (entering || key !== lastView) {
+  // A result re-enters once, but a lock preserves any original entrance
+  // already running. Repeated snapshots cannot restart either animation.
+  const terminalView = view.phase === "resolved" || view.phase === "canceled";
+  if (entering || (key !== lastView && terminalView)) {
     overlay.className = "prediction-overlay";
     overlay.style.animationDelay = "0s";
-    // Re-enter the result even when it arrives straight from active voting.
-    // Replays of the same result must not restart this entrance.
-    if (entering || view.phase === "resolved" || view.phase === "canceled") {
-      const age = ["resolved", "canceled"].includes(view.phase) ? Math.max(0, now - Date.parse(prediction.ended_at)) : 0;
-      if (age < POLICY.entryMs) {
-        void overlay.offsetWidth;
-        overlay.style.animationDelay = -age + "ms";
-        overlay.classList.add("fadeIn");
-      }
+    const age = terminalView ? Math.max(0, now - Date.parse(prediction.ended_at)) : 0;
+    if (age < POLICY.entryMs) {
+      void overlay.offsetWidth;
+      overlay.style.animationDelay = -age + "ms";
+      overlay.classList.add("fadeIn");
     }
   }
   lastView = key;

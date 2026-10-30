@@ -122,7 +122,8 @@ try {
   // Every supported option count also fits a deliberately extreme vote split.
   const page = pages[0].page;
   for (let count = 2; count <= 10; count++) {
-    await page.locator(`[data-prediction-count="${count}"]`).click();
+    await page.locator("#predictionOutcomeCount").fill(String(count));
+    await page.locator("#predictionOutcomeCount").press("Tab");
     await page.locator("#predictionBeginNormalButton").click();
     await check(async () => (await inspect(page)).phase === "active" && (await inspect(page)).nodes.length === count, "every supported count begins");
     await page.locator("#predictionVotePattern").selectOption("tiny-huge");
@@ -140,8 +141,11 @@ try {
   // Lock-only exit, followed by a real result after the widget has already hidden.
   await page.locator("#predictionBeginNormalButton").click();
   await check(async () => (await inspect(page)).phase === "active", "lock-only begin");
+  await check(async () => root(page).evaluate((node) => node.getAnimations().some((animation) => animation.animationName === "fadeIn" && animation.startTime !== null)), "entrance has started");
+  const entranceStart = await root(page).evaluate((node) => node.getAnimations().find((animation) => animation.animationName === "fadeIn").startTime);
   await page.locator("#predictionLockButton").click();
   await check(async () => (await inspect(page)).phase === "locked", "lock-only state");
+  assert.equal(await root(page).evaluate((node) => node.getAnimations().find((animation) => animation.animationName === "fadeIn")?.startTime), entranceStart, "Immediate lock preserves the original entrance instead of cancelling or restarting it");
   await check(async () => (await inspect(page)).overlayAnimation === "fadeOut", "lock waits fifteen seconds before exit", 17000);
   assert.equal((await inspect(page)).barsAnimation, "slideOut");
   await check(async () => (await inspect(page)).hidden, "lock exit completes", 1500);

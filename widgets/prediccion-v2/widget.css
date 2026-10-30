@@ -309,7 +309,7 @@ body { width: min(960px, calc(100vw - 200px)); }
 .prediction-child { flex: 0 0 auto; min-width: 0; margin-left: 0; margin-right: 0; }
 .prediction-child + .prediction-child { margin-left: -10px; }
 .prediction-outcome { position: absolute; inset: 0; clip-path: polygon(15px 0, 100% 0, calc(100% - 15px) 100%, 0 100%); }
-.outcome-shade { position: absolute; top: 0; left: -10px; width: 110%; height: 110%; background: linear-gradient(to top left, #0008, transparent); }
+.outcome-shade { position: absolute; top: 0; left: -10px; width: 110%; height: 110%; clip-path: polygon(15px 0%, 100% 0%, calc(100% - 15px) 100%, 0% 100%); background: linear-gradient(to top left, rgba(0, 0, 0, .5), transparent); }
 .slideIn { animation-fill-mode: both; }
 .prediction-overlay[data-phase="resolved"] .prediction-child { transition: left 1s ease, width 1s ease, opacity .8s ease; }
 .prediction-child.is-loser { animation: resultLoser .8s ease both; animation-delay: var(--loser-delay, 0ms); }
