@@ -58,8 +58,16 @@ try {
       top: rect.top - body.querySelector(".prediction-overlay").getBoundingClientRect().top, height: rect.height };
   });
   const originalStyle = await reference.locator("body").evaluate(styles, selectors);
+  const initialRestoredStyle = await frame().locator("body").evaluate(styles, selectors);
+  // Compare matching counter text. The begin contract omits users: v2 displays
+  // an unknown placeholder until a real progress/sync supplies the zero totals.
+  await reference.locator(".progress-bar-users-text").first().evaluate((node) => { node.lastChild.textContent = " …"; });
+  const originalUnknownStyle = await reference.locator("body").evaluate(styles, selectors);
+  await reference.locator(".progress-bar-users-text").first().evaluate((node) => { node.lastChild.textContent = " 0"; });
+  await page.locator("#predictionNormalProgressButton").click();
+  await check(async () => (await geometry()).children.every((item) => item.users === "0"), "initial zero progress is received");
   const restoredStyle = await frame().locator("body").evaluate(styles, selectors);
-  await writeFile("test-results/v2-original-style-comparison.json", JSON.stringify({ originalStyle, restoredStyle }, null, 2));
+  await writeFile("test-results/v2-original-style-comparison.json", JSON.stringify({ originalStyle, originalUnknownStyle, initialRestoredStyle, restoredStyle }, null, 2));
   await reference.screenshot({ path: "test-results/prediction-original-reference.png" });
   for (let index = 0; index < selectors.length; index++) {
     const original = originalStyle[index], restored = restoredStyle[index];
