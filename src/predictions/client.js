@@ -119,9 +119,9 @@ function render() {
     node.classList.toggle("is-loser", view.phase === "resolved" && view.resultStep >= 1 && !winning);
     node.classList.toggle("is-winner", view.phase === "resolved" && view.resultStep >= 2 && winning);
     if (!children.dataset.frozen) node.style.width = widths[index] + "px";
-    if (children.dataset.frozen && winning && view.resultStep >= 2) {
-      node.style.left = "0px";
-      node.style.width = children.clientWidth + "px";
+    if (children.dataset.frozen) {
+      node.style.left = (view.resultStep >= 2 && winning ? 0 : widths.slice(0, index).reduce((sum, width) => sum + width - 10, 0)) + "px";
+      node.style.width = (view.resultStep >= 2 && winning ? children.clientWidth : widths[index]) + "px";
     }
     node.querySelector(".progress-bar-text").textContent = outcome.title;
     node.querySelector(".prediction-outcome").style.backgroundColor = ["#ffbb00", "#0f63ff", "#ff0000"][index % 3];
@@ -141,6 +141,16 @@ function render() {
     for (const { node, left, top, width } of positions) {
       Object.assign(node.style, { position: "absolute", margin: "0", left: left + "px", top: top + "px", width: width + "px" });
     }
+    // Finish any in-flight vote-width transition using the final totals. Freezing
+    // measured widths alone would strand a 50/50 result at an earlier 25/75 frame.
+    void children.offsetWidth;
+    let left = 0;
+    prediction.outcomes.forEach((outcome, index) => {
+      const node = nodes.get(outcome.id);
+      node.style.left = left + "px";
+      node.style.width = widths[index] + "px";
+      left += widths[index] - 10;
+    });
     // A newly opened overlay jumps directly to the elapsed result step.
     if (view.resultStep >= 2) {
       const winner = nodes.get(prediction.winning_outcome_id);

@@ -59,12 +59,13 @@ try {
   });
   const originalStyle = await reference.locator("body").evaluate(styles, selectors);
   const restoredStyle = await frame().locator("body").evaluate(styles, selectors);
+  await writeFile("test-results/v2-original-style-comparison.json", JSON.stringify({ originalStyle, restoredStyle }, null, 2));
+  await reference.screenshot({ path: "test-results/prediction-original-reference.png" });
   for (let index = 0; index < selectors.length; index++) {
     const original = originalStyle[index], restored = restoredStyle[index];
     assert.deepEqual([restored.fontSize, restored.fontWeight, restored.fontStyle, restored.fontFamily], [original.fontSize, original.fontWeight, original.fontStyle, original.fontFamily], selectors[index] + " retains original typography");
-    assert(Math.abs(restored.top - original.top) < 2, selectors[index] + " retains original vertical placement");
+    assert(Math.abs(restored.top - original.top) < 2, selectors[index] + " retains original vertical placement: " + JSON.stringify({ original, restored }));
   }
-  await reference.screenshot({ path: "test-results/prediction-original-reference.png" });
   await reference.close();
 
   // Use the real numeric fields. Never substitute an internal state assignment.
@@ -89,7 +90,6 @@ try {
   await check(async () => JSON.stringify(await values()) === '["50%","50%"]', "equal manually entered points stay tied");
   assert.equal(await page.locator("#predictionWinningOutcome").inputValue(), "");
   assert(await page.locator("#predictionResolveWinnerButton").isDisabled());
-  await page.screenshot({ path: "test-results/v2-visual-tie.png" });
 
   // Choose option 2 explicitly and resolve directly during active voting.
   await page.locator("#predictionWinningOutcome").selectOption("outcome-2");
@@ -98,7 +98,10 @@ try {
   const deadline = Number(await root().getAttribute("data-hide-at"));
   assert((await frame().locator(".prediction-title-text").textContent()).startsWith("🏆 "));
   assert.equal(await root().evaluate((node) => getComputedStyle(node).animationName), "fadeIn", "Direct result has a new entrance animation");
-  await page.waitForTimeout(650);
+  await check(async () => {
+    const data = await geometry(); return Math.abs(data.children[0].width / (data.children[0].width + data.children[1].width) - .5) < .01;
+  }, "immediate resolution finishes the final tied-width transition", 1800);
+  await page.waitForTimeout(100);
   const before = await geometry();
   assert(before.children.every((item) => item.opacity > .99), "Both bars settle visible before losing animation");
   await check(async () => (await geometry()).children[0].opacity < .8, "loser really fades", 4200);
@@ -128,6 +131,8 @@ try {
   await page.locator("#predictionApplyVotePatternButton").click();
   await page.locator("#predictionNormalProgressButton").click();
   await check(async () => JSON.stringify(await values()) === '["50%","50%"]', "equal preset");
+  await page.waitForTimeout(1600);
+  await page.screenshot({ path: "test-results/v2-visual-tie.png" });
   await page.locator("#predictionLockButton").click();
   await check(async () => await root().getAttribute("data-phase") === "locked", "lock");
   const title = await frame().locator(".prediction-title-text").textContent();
