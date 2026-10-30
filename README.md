@@ -73,6 +73,12 @@ En OBS usar **Interactuar** y **F2** para ocultar o mostrar los controles. La vi
 
 El diagnóstico registra los eventos nativos de visibilidad/actividad y, mientras están abiertos los controles, intervalos de callbacks rAF. El informe Debug incorpora esos datos. La medición rAF no equivale a los FPS de salida de OBS. El procedimiento y los límites de reiniciar toda la fuente están en [la guía de fase 1](docs/phase-1-fidelity.md#prueba-dentro-de-obs-real).
 
+## Fase 2: investigación de Twitch y especificación
+
+La [investigación de predicciones](docs/phase-2-twitch-predictions.md) documenta la diferencia entre cierre y resolución, los formatos Helix/EventSub, los fallos observados en el Worker adjunto y el diseño de recuperación para la fase 3. Incluye el papel de SE_API.store, tiempos absolutos y criterios para evitar resultados antiguos al cambiar de overlay.
+
+El [ejemplo de estado versión 2](docs/prediction-state-v2.example.json) es una propuesta de protocolo para implementar en fase 3. El mock y el widget legado siguen usando su protocolo actual. La investigación también corrige un campo del generador: los participantes de una predicción cancelada tienen channel_points_won=0, mientras progress/lock mantienen null.
+
 ## Mock de StreamElements
 
 `src/harness/se-mock.js` expone dentro del iframe:

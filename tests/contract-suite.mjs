@@ -112,7 +112,7 @@ export async function runContractTests({ sources, evaluate, createEventTarget, e
     equal(lock.outcomes[0].top_predictors[0].channel_points_won, null, "lock won null");
     const end = format("end", raw);
     equal(end.winning_outcome_id, null, "cancel has no winner");
-    equal(end.outcomes[0].top_predictors[0].channel_points_won, null, "cancel won null");
+    equal(end.outcomes[0].top_predictors[0].channel_points_won, 0, "cancel awards zero points");
   });
 
   await test("explicit Twitch payload is never repaired with default event fields", async () => {
