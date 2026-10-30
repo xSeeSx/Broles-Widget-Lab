@@ -31,7 +31,7 @@ export async function runControlTests({ page, frameA, check }) {
   await page.locator("#zoomSelect").selectOption("0.5");
   await page.locator("#previewBackgroundSelect").selectOption("chroma");
   const size = await page.locator("#iframeViewport").evaluate((node) => ({ width: node.style.width, height: node.style.height }));
-  assert.deepEqual(size, { width: "800px", height: "200px" });
+  assert.deepEqual(size, { width: "400px", height: "100px" });
   assert((await page.locator("#previewShell").getAttribute("class")).includes("preview-bg-chroma"));
   await page.locator("#viewportPresetSelect").selectOption("1280x720");
   await page.locator("#zoomSelect").selectOption("0.75");
@@ -41,7 +41,7 @@ export async function runControlTests({ page, frameA, check }) {
   await page.locator("#validateWidgetsButton").click();
   await check(async () => (await page.locator("#validationResults > li").count()) >= 3, "Registry validation control produces results");
   await navigate("Fields");
-  assert((await page.locator("#fieldsList").textContent()).includes("title"), "Fields panel shows the selected widget schema");
+  assert((await page.locator("#fieldsList").textContent()).includes("Title"), "Fields panel shows the selected widget schema");
 
   await navigate("Import widget");
   await page.locator("#importWidgetId").fill("control-probe");

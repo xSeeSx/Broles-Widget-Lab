@@ -178,6 +178,7 @@ try {
   await check(async () => (await frameA().locator("#value").textContent()) === expected, "Full lab reload preserves SE storage");
   await page.screenshot({ path: "test-results/storage-probe.png", fullPage: true });
 
+  await page.setViewportSize({ width: 1600, height: 1100 });
   await page.goto("http://127.0.0.1:4173/?view=obs&widget=prediccion", { waitUntil: "networkidle" });
   await check(async () => (await frameA().locator("#loadCount").textContent()) === "1", "OBS view loads the requested widget with the same harness");
   assert.equal(await page.locator(".control-panel").isVisible(), false, "Clean OBS view has no controls drawn");
