@@ -21,7 +21,7 @@ Primero desplegar y verificar el puente v2 en el Worker correcto. Después copia
 
 El campo `workerUrl` apunta a `wss://losbroles.lessergio.workers.dev/ws/v2?broadcaster_id=133649243`. El Worker antiguo no implementa ese endpoint. Publicar solo el widget nuevo sin actualizar primero el puente dejaría la fuente sin sincronización.
 
-La posición y el ancho visual mantienen la referencia de 960 px con margen de 100 px. Se conservan Manrope, barras inclinadas y los colores amarillo, azul y rojo. El layout se ajusta entre dos y diez opciones; los porcentajes son los reales por puntos y los multiplicadores son orientativos. Los datos desconocidos se muestran como `…`, sin fabricar ceros. El texto de Twitch se inserta con textContent.
+La posición y el ancho visual mantienen la referencia de 960 px con margen de 100 px. Se conservan Manrope, barras inclinadas y los colores amarillo, azul y rojo. El layout se ajusta entre dos y diez opciones; los porcentajes son los reales por puntos y los multiplicadores son orientativos. Antes de recibir los contadores, los porcentajes muestran el reparto inicial equitativo de la referencia original. Los contadores desconocidos siguen siendo null en el estado y los usuarios se muestran como `…`, sin fabricar ceros. El texto de Twitch se inserta con textContent.
 
 ## Recuperación y persistencia
 
@@ -52,3 +52,9 @@ Las pruebas nuevas usan el widget real dentro de iframes y comprueban recuperaci
 No se ha desplegado el Worker de Cloudflare ni se han cambiado sus enlaces o secretos. Hay que contrastar su namespace y backend de Durable Objects y su historial de migraciones antes de conectar Builds al repositorio nuevo. El README de ese proyecto explica actualización y rollback. Las pruebas automatizadas no acreditan esos recursos ni la configuración OAuth desplegada.
 
 La revisión final debe hacerse en una fuente Navegador de OBS real: fuente viva oculta, apagado de la fuente al ocultarla, recarga, resolución en otra escena, recuperación después del plazo y una predicción nueva tras la anterior. La vista `?view=obs&widget=prediccion-v2&controls=1` usa el renderer real de OBS cuando se abre dentro de OBS; el laboratorio del navegador no emula CEF.
+
+## Regresiones visuales y controles
+
+Se ha restaurado el CSS original, la estructura de métricas con iconos, la entrada escalonada de barras y los STOP en ambos extremos. El resultado reinicia su entrada una sola vez incluso si llega directamente desde active. Las barras existentes se fijan en su posición al resolver; la perdedora se desvanece a los tres segundos y la ganadora se desplaza y amplía a los cinco, aunque no haya habido lock. El plazo absoluto sigue limpiando el DOM sin depender de animationend. Los porcentajes iniciales vuelven al reparto equitativo y el cálculo del ancho conserva las proporciones reales salvo el mínimo necesario para leer opciones pequeñas.
+
+El laboratorio incluye **Empate exacto de puntos**. Begin limpia la selección del resultado; Resolver exige elegirlo expresamente. Un reparto igualado no determina el resultado de Twitch ni provoca por sí solo una victoria o cancelación.

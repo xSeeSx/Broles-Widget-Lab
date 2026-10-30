@@ -1,25 +1,325 @@
-* { box-sizing: border-box; }
-html, body { margin: 0; background: transparent; color: white; font-family: Manrope, sans-serif; }
-body { padding: 100px; }
-.prediction-overlay { width: min(960px, 100%); position: relative; text-align: center; }
+body {
+  background-color: rgb(61, 61, 61, 0) ;
+  color: white;
+  width: 960px;
+  margin: 100px;
+  transition: opacity 0.5s ease;
+}
+
+.prediction-overlay {
+  text-align: right;
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  animation-duration: 10s;
+  animation-fill-mode: both;
+}
+
+.prediction-children {
+  font-family: 'Manrope';
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  overflow: visible;
+  margin-top: -50px;
+  width: 100%;
+  max-height: 70px;
+}
+
+.prediction-child {
+  flex: 1 1 auto;
+  margin-left: -5px;
+  margin-right: -5px;
+  margin-bottom: 0;
+  margin-top: 50px;
+  transition:
+    width 1s cubic-bezier(0.65, -0.25, 0.35, 1.25),
+    opacity 0.5s ease;
+}
+
+.prediction-child.out {
+  opacity: 0;
+  width: 0;
+  max-width: 0;
+  overflow: hidden; /* asegura que el contenido no se vea durante el colapso */
+}
+
+.prediction-title {
+  display: block;
+  text-align: center;
+  text-shadow: #212121 0px 0px 8px;
+  padding-bottom: 5px;
+}
+
+
+.prediction-title-text,
+.prediction-time-text {
+  font-family: 'Manrope';
+  font-weight: 600;
+  color: white;
+  font-size: large;
+  transition: opacity 0.5s ease;
+  text-shadow: #212121 0px 0px 5px;
+}
+
+.prediction-time-text {
+  padding-right: 30px;
+}
+
+
+
+.progress-bar {
+  position: relative;
+  background-color: rgb(0,0,0,0);
+  margin-top: -50px;
+  height: 30px;
+  border-radius: 0px;
+  overflow: hidden;
+}
+
+.progress-bar-foreground-1 {
+  height: 100%;
+  background-color: #002FB1;
+}
+
+.progress-bar-stats {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.progress-bar-stats-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.progress-bar-text {
+  padding-right: 25px;
+  margin-top: 55px;
+  text-align: left;
+  font-family: 'Manrope';
+  font-weight: 800;
+  font-style: italic;
+  text-shadow: #212121 0px 0px 5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.progress-bar-multiplier {
+  font-size: 12px;
+  font-family: 'Manrope';
+  font-weight: 600;
+  font-style: italic;
+  margin-top: -56px;
+  margin-left: auto;
+  margin-right: -5px;
+  text-align: right;
+  padding-right: 10px;
+  width: fit-content;
+  overflow: hidden;
+  text-shadow: #212121 0px 0px 5px;
+
+}
+
+.progress-bar-points {
+  padding-left: 25px;
+  text-align: left;
+}
+
+.progress-bar-users {
+  text-shadow: #212121 0px 0px 5px;
+  margin-top: -20px;
+  margin-left: auto;
+  margin-right: 45px;
+  text-align: right;
+  padding-right: 10px;
+  width: fit-content;
+  overflow: hidden;
+}
+
+.progress-bar-users-text{
+  font-size: 12px;
+  font-family: 'Manrope';
+  font-weight: 600;
+  font-style: italic;
+}
+
+.progress-bar-percent-text{
+  font-family: 'Franklin Gothic Medium';
+  font-style: italic;
+  text-shadow: #262626 0px 0px 5px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  pointer-events: none;
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  10% {
+    transform: translateY(-8px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+}
+
+.fadeOut {
+  animation: fadeOut 0.7s ease-in forwards ;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
+  100% {
+    transform: translateY(0); /* vuelve a su posición */
+  }
+}
+
+@keyframes fadeOutReverse {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  15% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+}
+
+.fadeOutReverse {
+  animation: fadeOutReverse 0.7s ease-in forwards;
+  animation-delay: 0.5s;
+}
+
+.fadeIn {
+  animation: fadeIn 0.5s ease-in forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(20px) rotateX(90deg) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) rotateX(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+.slideIn {
+  animation: slideIn 0.4s ease forwards;
+  animation-delay: 0.5s;
+}
+
+@keyframes slideInOtro {
+  from {
+    transform: translateY(20px) rotateX(90deg) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) rotateX(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+.slideInOtro {
+  animation: slideInOtro 0.4s ease forwards;
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateY(0) rotateX(0deg) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(20px) rotateX(90deg) scale(0.95);
+    opacity: 0;
+  }
+}
+
+.slideOut {
+  animation: slideOut 0.4s ease forwards;
+}
+
+
+@keyframes heartbeat {
+  0% { transform: scale(1.1); }
+  5% { transform: scale(1.1); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1); }
+  70% { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+
+.heartbeat {
+  animation: heartbeat 2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+
+.prediction-children {
+  position: relative;
+}
+
+
+.poly-child {
+  opacity: 1;
+  transition: opacity 3s ease; /* <-- aquí defines la duración del fade */
+}
+
+/* Clase que baja la opacidad a 0 */
+.poly-child.fade-out {
+  opacity: 0;
+}
+
+
+
+/* v2: preserve the original presentation above; add reliable state cleanup. */
+html { background: transparent; }
+body { width: min(960px, calc(100vw - 200px)); }
 .prediction-overlay[hidden] { display: none !important; }
-.prediction-title { padding-bottom: 8px; text-shadow: 0 0 8px #212121; }
-.prediction-title-text { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.prediction-title-text { overflow-wrap: anywhere; }
 .prediction-time-text { font-size: 28px; font-weight: 800; letter-spacing: -2px; }
-.prediction-time-text[hidden] { display: none; }
-.prediction-children { display: flex; align-items: end; gap: 10px; width: 100%; }
-.prediction-child { flex: 0 0 auto; min-width: 0; transition: width 700ms ease, opacity 500ms ease; overflow: hidden; }
-.progress-bar-stats { display: flex; min-width: 0; }
-.progress-bar-text { width: 100%; padding: 0 10px 4px; font-size: 14px; font-weight: 800; font-style: italic; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 0 5px #212121; }
-.progress-bar { position: relative; height: 30px; overflow: hidden; }
-.prediction-outcome { position: absolute; inset: 0; clip-path: polygon(15px 0, 100% 0, calc(100% - 15px) 100%, 0 100%); background: #ffbb00; }
-.prediction-outcome::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top left, #0008, transparent); }
-.progress-bar-percent-text { position: relative; line-height: 30px; font-family: "Franklin Gothic Medium", sans-serif; font-style: italic; text-shadow: 0 0 5px #262626; }
-.progress-bar-metrics { display: flex; justify-content: space-between; gap: 4px; padding: 4px 8px 0; font-size: 12px; font-weight: 600; font-style: italic; white-space: nowrap; text-shadow: 0 0 5px #212121; }
-.is-many .progress-bar-text, .is-many .progress-bar-metrics { font-size: 11px; padding-left: 3px; padding-right: 3px; }
+.prediction-time-text.is-inactive { opacity: 0; }
+.prediction-children { justify-content: flex-start; }
+.prediction-child { flex: 0 0 auto; min-width: 0; margin-left: 0; margin-right: 0; }
+.prediction-child + .prediction-child { margin-left: -10px; }
+.prediction-outcome { position: absolute; inset: 0; clip-path: polygon(15px 0, 100% 0, calc(100% - 15px) 100%, 0 100%); }
+.outcome-shade { position: absolute; top: 0; left: -10px; width: 110%; height: 110%; background: linear-gradient(to top left, #0008, transparent); }
+.slideIn { animation-fill-mode: both; }
+.prediction-overlay[data-phase="resolved"] .prediction-child { transition: left 1s ease, width 1s ease, opacity .8s ease; }
 .prediction-child.is-loser { opacity: 0; }
-.prediction-child.is-collapsed { margin-right: -10px; }
-.fadeIn { animation: predictionIn 450ms ease-out both; }
-.prediction-overlay.is-exiting { animation: none; opacity: 0; transform: translateY(20px); transition: opacity 400ms ease, transform 400ms ease; }
-@keyframes predictionIn { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .fadeIn { animation: none; } .prediction-child, .prediction-overlay.is-exiting { transition: none; } }
+.prediction-overlay.is-exiting { animation: fadeOut .7s ease-in forwards; animation-delay: 0s !important; }
+.is-many .progress-bar-text { font-size: 12px; padding-right: 12px; }
+.is-many .progress-bar-users { margin-right: 32px; padding-right: 3px; }
+.is-many .progress-bar-multiplier { padding-right: 3px; margin-right: 0; }
+.is-many .progress-bar-multiplier, .is-many .progress-bar-users-text { font-size: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .fadeIn, .slideIn, .heartbeat { animation: none; }
+  .prediction-child, .prediction-time-text { transition: none !important; }
+  .prediction-overlay.is-exiting { animation: none; }
+}

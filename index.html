@@ -55,7 +55,8 @@
               <button id="predictionEndCanceledButton" type="button" class="secondary-button">Cancelar</button>
             </div>
           </div>
-          <p class="helper-text">Inicia → aplica o edita votos → envía votos → bloquea → elige ganador y resuelve. Son eventos simulados.</p>
+          <p id="predictionVoteFeedback" class="helper-text" role="status" hidden></p>
+          <p class="helper-text">Inicia → aplica o edita votos → envía votos → bloquea → elige expresamente el resultado y resuelve, o cancela para devolver los puntos. Un empate de apuestas no elige ganador. Son eventos simulados.</p>
 
           <div class="control-group">
             <h3>Configuración</h3>
@@ -98,11 +99,13 @@
 
           <div class="control-group">
             <h3>Votos</h3>
+            <p class="helper-text">Usuarios y puntos son totales acumulados por opción, no porcentajes. Editar no envía: pulsa Enviar votos. Iniciar una predicción nueva los pone a cero.</p>
             <label class="field-label" for="predictionVotePattern">Generador de votos</label>
             <select id="predictionVotePattern" class="select-input">
               <option value="zero">Sin votos</option>
               <option value="random" selected>Aleatorios</option>
               <option value="all-option-1">Todos a la opción 1</option>
+              <option value="equal">Empate exacto de puntos</option>
               <option value="close-percentages">Porcentajes cercanos</option>
               <option value="tiny-huge">Una opción pequeña y otra grande</option>
               <option value="ten-uneven">10 opciones desiguales</option>

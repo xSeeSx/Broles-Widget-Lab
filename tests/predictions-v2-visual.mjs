@@ -1,0 +1,118 @@
+import assert from "node:assert/strict";
+import { chromium } from "playwright";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+await mkdir("test-results", { recursive: true });
+const browser = await chromium.launch();
+const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, recordVideo: { dir: "test-results/visual-video", size: { width: 1600, height: 1000 } } });
+const page = await context.newPage();
+const errors = [];
+page.on("pageerror", (error) => errors.push(error.message));
+const frame = () => page.frameLocator("#widgetFrame");
+const root = () => frame().locator(".prediction-overlay");
+const check = async (fn, label, ms = 5000) => {
+  const until = Date.now() + ms;
+  while (!await fn()) { if (Date.now() > until) throw new Error(label); await page.waitForTimeout(40); }
+  console.log("PASS visual " + label);
+};
+const values = () => frame().locator(".progress-bar-percent-text").allTextContents();
+const field = (index, type) => page.locator(`#predictionOutcomes input[data-outcome-index="${index}"][data-outcome-field="${type}"]`);
+const enter = async (users, points) => {
+  for (let index = 0; index < users.length; index++) {
+    await field(index, "users").fill(String(users[index]));
+    await field(index, "channelPoints").fill(String(points[index]));
+  }
+};
+const geometry = () => frame().locator(".prediction-children").evaluate((container) => ({
+  width: container.clientWidth,
+  children: [...container.children].map((node) => ({ left: node.offsetLeft, top: node.offsetTop, width: node.getBoundingClientRect().width, opacity: Number(getComputedStyle(node).opacity),
+    percent: node.querySelector(".progress-bar-percent-text").textContent, users: node.querySelector(".progress-bar-users-text").textContent }))
+}));
+try {
+  await page.goto("http://127.0.0.1:4173/?widget=prediccion-v2", { waitUntil: "networkidle" });
+  await check(async () => await page.locator("#workerConnectionCount").textContent() === "1", "ready");
+  await page.locator("#predictionBeginNormalButton").click();
+  await check(async () => await root().isVisible(), "begin");
+  assert.deepEqual(await values(), ["50%", "50%"], "Initial percentages retain the equal split");
+  assert.equal(await page.locator("#predictionWinningOutcome").inputValue(), "");
+  assert(await page.locator("#predictionResolveWinnerButton").isDisabled(), "No automatic result choice");
+  await page.waitForTimeout(1600);
+  const initial = await geometry();
+  const separation = initial.children[1].left - initial.children[0].left - initial.children[0].width;
+  assert(Math.abs(separation + 10) < 2, "Original overlapping bounds leave compact slanted gaps");
+  await page.screenshot({ path: "test-results/v2-visual-initial.png" });
+
+  // Use the real numeric fields. Never substitute an internal state assignment.
+  await enter([25, 75], [10000, 30000]);
+  await page.locator("#predictionNormalProgressButton").click();
+  await check(async () => JSON.stringify(await values()) === '["25%","75%"]', "manual points reach the percentage labels");
+  await check(async () => {
+    const data = await geometry(); return Math.abs(data.children[0].width / (data.children[0].width + data.children[1].width) - .25) < .015;
+  }, "manual 25/75 also reaches bar geometry");
+  assert.deepEqual((await geometry()).children.map((item) => item.users), ["25", "75"]);
+  const stored = await frame().locator("body").evaluate(() => window.SE_API.store.get("brolesPredictions133649243v2"));
+  // Progress writes are debounced; the eventual store must contain exactly the edited totals.
+  await check(async () => frame().locator("body").evaluate(async () => {
+    const saved = await window.SE_API.store.get("brolesPredictions133649243v2");
+    return JSON.stringify(saved?.snapshot.prediction.outcomes.map((x) => [x.users, x.channel_points])) === '[[25,10000],[75,30000]]';
+  }), "manual counters reach SE storage exactly");
+  await enter([1, 1], [10, 10]);
+  await page.locator("#predictionNormalProgressButton").click();
+  assert((await page.locator("#predictionVoteFeedback").textContent()).includes("No enviado"), "Decreasing cumulative totals cannot silently diverge from the widget");
+  assert.deepEqual(await values(), ["25%", "75%"]);
+  await enter([75, 75], [30000, 30000]);
+  await page.locator("#predictionNormalProgressButton").click();
+  await check(async () => JSON.stringify(await values()) === '["50%","50%"]', "equal manually entered points stay tied");
+  assert.equal(await page.locator("#predictionWinningOutcome").inputValue(), "");
+  assert(await page.locator("#predictionResolveWinnerButton").isDisabled());
+  await page.screenshot({ path: "test-results/v2-visual-tie.png" });
+
+  // Choose option 2 explicitly and resolve directly during active voting.
+  await page.locator("#predictionWinningOutcome").selectOption("outcome-2");
+  await page.locator("#predictionResolveWinnerButton").click();
+  await check(async () => await root().getAttribute("data-phase") === "resolved", "active can resolve directly");
+  const deadline = Number(await root().getAttribute("data-hide-at"));
+  assert((await frame().locator(".prediction-title-text").textContent()).startsWith("🏆 "));
+  assert.equal(await root().evaluate((node) => getComputedStyle(node).animationName), "fadeIn", "Direct result has a new entrance animation");
+  await page.waitForTimeout(650);
+  const before = await geometry();
+  assert(before.children.every((item) => item.opacity > .99), "Both bars settle visible before losing animation");
+  await check(async () => (await geometry()).children[0].opacity < .8, "loser really fades", 4200);
+  await page.screenshot({ path: "test-results/v2-visual-loser-fading.png" });
+  await check(async () => {
+    const data = await geometry(); return data.children[1].width > before.children[1].width + 10 && data.children[1].width < data.width - 10;
+  }, "winner expansion has intermediate frames", 3500);
+  await check(async () => {
+    const data = await geometry(); return Math.abs(data.children[1].width - data.width) < 2 && Math.abs(data.children[1].left) < 2 && data.children[0].opacity < .01;
+  }, "option 2 expands fully to the left edge", 2500);
+  await page.screenshot({ path: "test-results/v2-visual-winner-expanded.png" });
+  const expanded = await geometry();
+  await page.waitForTimeout(600);
+  assert.deepEqual(await geometry(), expanded, "Periodic renders cannot restart or freeze the final motion");
+  assert.equal(Number(await root().getAttribute("data-hide-at")), deadline);
+  await check(async () => await root().evaluate((node) => getComputedStyle(node).animationName === "fadeOut"), "exit animation starts", 4000);
+  await page.waitForTimeout(300);
+  const exitOpacity = await root().evaluate((node) => Number(getComputedStyle(node).opacity));
+  assert(exitOpacity > 0 && exitOpacity < 1, "Exit has an actual intermediate visible frame");
+  await check(async () => !await root().isVisible(), "exit cleans up title and bars", 1500);
+  assert.equal(await frame().locator(".prediction-child").count(), 0);
+  assert.equal(await frame().locator(".prediction-title-text").textContent(), "");
+
+  await page.locator("#predictionBeginNormalButton").click();
+  await check(async () => await root().getAttribute("data-phase") === "active", "next begin");
+  await page.locator("#predictionVotePattern").selectOption("equal");
+  await page.locator("#predictionApplyVotePatternButton").click();
+  await page.locator("#predictionNormalProgressButton").click();
+  await check(async () => JSON.stringify(await values()) === '["50%","50%"]', "equal preset");
+  await page.locator("#predictionLockButton").click();
+  await check(async () => await root().getAttribute("data-phase") === "locked", "lock");
+  const title = await frame().locator(".prediction-title-text").textContent();
+  assert(title.startsWith("🛑 ") && title.endsWith(" 🛑"), "STOP is present at both ends");
+  await page.screenshot({ path: "test-results/v2-visual-lock.png" });
+  assert.deepEqual(errors, []);
+  await writeFile("test-results/v2-visual-report.json", JSON.stringify({ status: "passed", initial, before, expanded, exitOpacity, errors }, null, 2));
+  console.log("Visual sequence and manual vote regressions passed.");
+} catch (error) {
+  await page.screenshot({ path: "test-results/v2-visual-failure.png" }).catch(() => {});
+  await writeFile("test-results/v2-visual-failure.txt", error.stack + "\n" + JSON.stringify(errors) + "\n" + await page.locator("#logList").textContent());
+  throw error;
+} finally { await context.close(); await browser.close(); }

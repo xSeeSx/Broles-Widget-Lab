@@ -73,6 +73,7 @@ try {
     const p = container.getBoundingClientRect(); return [...container.children].every((n) => n.getBoundingClientRect().right <= p.right + 1);
   }), "ten-option layout fits the available width");
   await page.screenshot({ path: "test-results/v2-ten-options.png" });
+  await page.locator("#predictionWinningOutcome").selectOption("outcome-1");
   await page.locator("#predictionResolveWinnerButton").click();
   await check(async () => await phase(b) === "resolved", "end works without receiving lock");
   const endedDeadline = await b().locator(".prediction-overlay").getAttribute("data-hide-at");

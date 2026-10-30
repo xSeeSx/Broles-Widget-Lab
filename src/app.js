@@ -281,6 +281,7 @@ function bindElements() {
   elements.predictionWinningOutcome = document.querySelector("#predictionWinningOutcome");
   elements.predictionOutcomes = document.querySelector("#predictionOutcomes");
   elements.predictionVotePattern = document.querySelector("#predictionVotePattern");
+  elements.predictionVoteFeedback = document.querySelector("#predictionVoteFeedback");
   elements.predictionApplyVotePatternButton = document.querySelector("#predictionApplyVotePatternButton");
   elements.predictionSendProgressButton = document.querySelector("#predictionSendProgressButton");
   elements.predictionNormalProgressButton = document.querySelector("#predictionNormalProgressButton");
@@ -433,6 +434,7 @@ function bindEvents() {
 
   elements.predictionWinningOutcome.addEventListener("change", () => {
     state.prediction.winningOutcomeId = elements.predictionWinningOutcome.value || null;
+    renderPredictionStateSummary();
   });
 
   elements.predictionOutcomes.addEventListener("input", handlePredictionOutcomeInput);
@@ -1874,7 +1876,7 @@ function createDefaultPredictionState() {
     locksAt: null,
     lockedAt: null,
     endedAt: null,
-    winningOutcomeId: "outcome-1",
+    winningOutcomeId: null,
     currentPrediction: null,
     predictionHistory: [],
     lastPredictionPayload: null,
@@ -1923,7 +1925,7 @@ function renderPredictionWinningOptions() {
 
   const emptyOption = document.createElement("option");
   emptyOption.value = "";
-  emptyOption.textContent = "sin ganador";
+  emptyOption.textContent = "Elige el resultado";
   elements.predictionWinningOutcome.append(emptyOption);
 
   for (const outcome of state.prediction.outcomes) {
@@ -1934,7 +1936,7 @@ function renderPredictionWinningOptions() {
   }
 
   if (!state.prediction.outcomes.some((outcome) => outcome.id === state.prediction.winningOutcomeId)) {
-    state.prediction.winningOutcomeId = state.prediction.outcomes[0]?.id || null;
+    state.prediction.winningOutcomeId = null;
   }
 
   elements.predictionWinningOutcome.value = state.prediction.winningOutcomeId || "";
@@ -2061,6 +2063,7 @@ function renderPredictionStateSummary() {
   for (const button of [elements.predictionResolveWinnerButton, elements.predictionEndCanceledButton]) {
     button.disabled = twitch && !ongoing;
   }
+  elements.predictionResolveWinnerButton.disabled ||= !state.prediction.winningOutcomeId;
 }
 
 function handlePredictionOutcomeInput(event) {
@@ -2136,7 +2139,7 @@ function resizePredictionOutcomes(nextCount) {
   state.prediction.outcomes = state.prediction.outcomes.slice(0, nextCount);
 
   if (!state.prediction.outcomes.some((outcome) => outcome.id === state.prediction.winningOutcomeId)) {
-    state.prediction.winningOutcomeId = state.prediction.outcomes[0]?.id || null;
+    state.prediction.winningOutcomeId = null;
   }
 }
 
@@ -2160,6 +2163,8 @@ function beginNormalPrediction() {
   setPredictionRuntimeStatus("active", "begin");
   state.prediction.lockedAt = null;
   state.prediction.endedAt = null;
+  state.prediction.winningOutcomeId = null;
+  if (elements.predictionVoteFeedback) elements.predictionVoteFeedback.hidden = true;
   renderPredictionControls();
   emitTwitchPredictionPayload(buildPredictionPayload("begin"));
   schedulePredictionWindow();
@@ -2233,10 +2238,28 @@ function progressExpiredPrediction() {
 function sendPredictionProgressWithCurrentVotes() {
   syncPredictionFromControls();
   if (!ensurePredictionStarted()) return;
-  if (!allowProgress()) return;
+  if (!allowProgress() || !validatePredictionVoteTotals()) return;
   setPredictionRuntimeStatus(getPredictionExpiredStatus(), "progress");
   renderPredictionControls();
   emitTwitchPredictionPayload(buildPredictionPayload("progress"));
+}
+
+function validatePredictionVoteTotals() {
+  const previous = state.prediction.currentPrediction;
+  const decreases = previous?.id === state.prediction.id && state.prediction.outcomes.some((outcome) => {
+    const known = previous.outcomes?.find((item) => item.id === outcome.id);
+    return known && ((known.users != null && outcome.users < known.users) ||
+      (known.channel_points != null && outcome.channelPoints < known.channel_points));
+  });
+  const invalid = state.prediction.mode === "twitch" && decreases;
+  if (elements.predictionVoteFeedback) {
+    elements.predictionVoteFeedback.hidden = false;
+    elements.predictionVoteFeedback.textContent = invalid
+      ? "No enviado: los votos son totales acumulados y no pueden bajar en esta predicción. Cancela e inicia otra para probar cifras menores."
+      : "Totales enviados: " + state.prediction.outcomes.map((outcome) => outcome.title + ": " + outcome.users + " usuarios, " + outcome.channelPoints + " puntos").join(" · ");
+  }
+  if (invalid) writeLog("warn", "lab", "No se envían contadores decrecientes. Los datos del formulario siguen sin enviar.");
+  return !invalid;
 }
 
 function addVotesToOutcome(index) {
@@ -2357,16 +2380,16 @@ function endPrediction(winnerIndex) {
 function resolvePredictionWithSelectedWinner() {
   syncPredictionFromControls();
   if (!ensurePredictionStarted()) return;
-  endPredictionByOutcomeId(state.prediction.winningOutcomeId || state.prediction.outcomes[0]?.id || null, "resolved");
+  endPredictionByOutcomeId(state.prediction.winningOutcomeId, "resolved");
 }
 
 function endPredictionByOutcomeId(winningOutcomeId, status) {
   if (state.prediction.mode === "twitch" && !ensurePredictionStarted()) return;
-  clearPredictionWindow();
-  if (status === "resolved" && !winningOutcomeId) {
-    writeLog("warn", "lab", "No hay winning_outcome_id para resolver");
+  if (status === "resolved" && !state.prediction.outcomes.some((outcome) => outcome.id === winningOutcomeId)) {
+    writeLog("warn", "lab", "Elige expresamente el resultado o cancela para devolver los puntos. El reparto de apuestas no decide el ganador.");
     return;
   }
+  clearPredictionWindow();
 
   state.prediction.status = status;
   state.prediction.winningOutcomeId = status === "resolved" ? winningOutcomeId : null;
@@ -2539,6 +2562,11 @@ function applyVotePattern(pattern) {
   if (pattern === "all-option-1") {
     outcomes[0].users = 25;
     outcomes[0].channelPoints = 25000;
+    return;
+  }
+
+  if (pattern === "equal") {
+    outcomes.forEach((outcome) => { outcome.users = 10; outcome.channelPoints = 10000; });
     return;
   }
 
