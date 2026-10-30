@@ -24,11 +24,34 @@ let lastMessage = 0;
 let lastSync = -Infinity;
 let lastView = "";
 let loaded = false;
+let fontsReady = !document.fonts?.load;
 const requests = new Map();
 const retiredEpochs = new Set();
 const nodes = new Map();
 const warn = (code) => console.warn("[Predicciones v2] " + code);
 const serverNow = () => clockAnchor ? clockAnchor.server + mono() - clockAnchor.local : Date.now();
+
+function prepareFonts() {
+  if (fontsReady) return;
+  const finish = () => {
+    if (fontsReady) return;
+    fontsReady = true;
+    clearTimeout(timeout);
+    render();
+  };
+  const timeout = setTimeout(() => { warn("fonts_loading_timeout"); finish(); }, 2000);
+  // Loading before the first visible snapshot also makes recovery geometry
+  // use Manrope and the original icons, rather than freezing a fallback font.
+  Promise.allSettled([
+    document.fonts.load('600 18px Manrope'),
+    document.fonts.load('800 16px Manrope'),
+    document.fonts.load('400 12px "Font Awesome 6 Free"', "\uf005\uf007")
+  ]).then((results) => {
+    if (fontsReady) return;
+    if (results.some((item) => item.status === "rejected" || !item.value?.length)) warn("fonts_unavailable");
+    finish();
+  });
+}
 
 function hide() {
   overlay.hidden = true;
@@ -39,6 +62,7 @@ function hide() {
   children.replaceChildren();
   nodes.clear();
   children.style.height = "";
+  children.classList.remove("slideOut");
   delete children.dataset.frozen;
   lastView = "";
 }
@@ -51,7 +75,7 @@ function createOutcome(outcome, index, animate) {
   node.innerHTML = '<div class="progress-bar-stats"><div class="progress-bar-stats-child"><div class="progress-bar-text"></div></div></div><div class="progress-bar"><div class="prediction-outcome progress-bar-foreground-1"><div class="outcome-shade"></div></div><div class="progress-bar-percent-text"></div></div><div class="progress-bar-multiplier"><i class="fa-regular fa-star" aria-hidden="true"></i> <span class="multiplier-text"></span></div><div class="progress-bar-users"><span class="progress-bar-users-text"><i class="fa-regular fa-user" aria-hidden="true"></i> </span></div>';
   if (animate) {
     node.classList.add("slideIn");
-    node.style.animationDelay = (500 + (index + 1) * 150) + "ms";
+    node.style.animationDelay = (POLICY.entryMs + (index + 1) * 150) + "ms";
   }
   children.append(node);
   nodes.set(outcome.id, node);
@@ -60,7 +84,7 @@ function createOutcome(outcome, index, animate) {
 
 function render() {
   clearTimeout(tickTimer);
-  if (!snapshot || !confirmed) { hide(); return; }
+  if (!snapshot || !confirmed || !fontsReady) { hide(); return; }
   const now = serverNow();
   const view = viewAt(snapshot, now);
   if (!view.visible) { hide(); return; }
@@ -75,23 +99,26 @@ function render() {
   overlay.dataset.phase = view.phase;
   overlay.dataset.revision = String(snapshot.revision);
   overlay.dataset.hideAt = view.hideAt ? String(view.hideAt) : "";
-  // A duplicated result updates its data but never restarts its animation or deadline.
-  if (entering || key !== lastView) {
+  // A result re-enters once, but a lock preserves any original entrance
+  // already running. Repeated snapshots cannot restart either animation.
+  const terminalView = view.phase === "resolved" || view.phase === "canceled";
+  if (entering || (key !== lastView && terminalView)) {
     overlay.className = "prediction-overlay";
     overlay.style.animationDelay = "0s";
-    // Re-enter the result even when it arrives straight from active voting.
-    // Replays of the same result must not restart this entrance.
-    if (entering || view.phase === "resolved" || view.phase === "canceled") {
-      const age = ["resolved", "canceled"].includes(view.phase) ? Math.max(0, now - Date.parse(prediction.ended_at)) : 0;
-      if (age < 500) {
-        void overlay.offsetWidth;
-        overlay.style.animationDelay = -age + "ms";
-        overlay.classList.add("fadeIn");
-      }
+    const age = terminalView ? Math.max(0, now - Date.parse(prediction.ended_at)) : 0;
+    if (age < POLICY.entryMs) {
+      void overlay.offsetWidth;
+      overlay.style.animationDelay = -age + "ms";
+      overlay.classList.add("fadeIn");
     }
   }
   lastView = key;
-  overlay.classList.toggle("is-exiting", Boolean(view.hideAt && now >= view.hideAt - 700));
+  const exiting = Boolean(view.hideAt && now >= view.hideAt - POLICY.exitMs);
+  if (exiting && !overlay.classList.contains("is-exiting")) {
+    overlay.style.setProperty("--exit-delay", -Math.max(0, now - (view.hideAt - POLICY.exitMs)) + "ms");
+  }
+  overlay.classList.toggle("is-exiting", exiting);
+  children.classList.toggle("slideOut", exiting);
   overlay.classList.toggle("is-many", prediction.outcomes.length > 5);
   const prefix = view.phase === "resolved" ? "🏆 " : view.phase === "canceled" ? "Cancelada: " : view.phase === "locked" ? "🛑 " : "";
   title.textContent = prefix + prediction.title + (view.phase === "resolved" ? " 🏆" : view.phase === "locked" ? " 🛑" : "");
@@ -114,23 +141,30 @@ function render() {
   if (capacity > 0) widths.forEach((width, index) => { widths[index] -= overflow * Math.max(0, width - minimum) / capacity; });
   prediction.outcomes.forEach((outcome, index) => {
     const node = nodes.get(outcome.id) || createOutcome(outcome, index, entering && view.phase === "active");
-    if (view.phase !== "active") node.classList.remove("slideIn");
-    const winning = outcome.id === prediction.winning_outcome_id;
-    node.classList.toggle("is-loser", view.phase === "resolved" && view.resultStep >= 1 && !winning);
-    node.classList.toggle("is-winner", view.phase === "resolved" && view.resultStep >= 2 && winning);
+    if (view.phase !== "active") {
+      node.classList.remove("slideIn");
+      node.style.animationDelay = "";
+    }
     if (!children.dataset.frozen) node.style.width = widths[index] + "px";
     if (children.dataset.frozen) {
-      node.style.left = (view.resultStep >= 2 && winning ? 0 : widths.slice(0, index).reduce((sum, width) => sum + width - 10, 0)) + "px";
-      node.style.width = (view.resultStep >= 2 && winning ? children.clientWidth : widths[index]) + "px";
+      const left = widths.slice(0, index).reduce((sum, width) => sum + width - 10, 0);
+      node.style.left = left + "px";
+      node.style.width = widths[index] + "px";
+      node.style.setProperty("--result-left", left + "px");
+      node.style.setProperty("--result-width", widths[index] + "px");
     }
     node.querySelector(".progress-bar-text").textContent = outcome.title;
     node.querySelector(".prediction-outcome").style.backgroundColor = ["#ffbb00", "#0f63ff", "#ff0000"][index % 3];
     // Before Twitch supplies totals, retain the original equal initial split.
     // This is a presentation fallback; unknown counters stay null in state/storage.
     node.querySelector(".progress-bar-percent-text").textContent = Math.round(percents[index]) + "%";
-    node.querySelector(".progress-bar-users-text").lastChild.textContent = " " + (outcome.users === null ? "…" : outcome.users.toLocaleString("en-US"));
+    node.querySelector(".progress-bar-users-text").lastChild.textContent = " " + (outcome.users === null ? view.phase === "active" ? "0" : "…" : outcome.users.toLocaleString("en-US"));
     const multiplier = total > 0 && outcome.channel_points > 0 ? total / outcome.channel_points : null;
     node.querySelector(".multiplier-text").textContent = "x" + (multiplier === null ? "1.0" : multiplier.toFixed(1));
+    // Keep the original 45px offset for normal values, and reserve more room
+    // only when a long multiplier would collide with the user metric.
+    const multiplierWidth = node.querySelector(".progress-bar-multiplier").offsetWidth;
+    node.querySelector(".progress-bar-users").style.marginRight = Math.max(45, multiplierWidth - 8) + "px";
   });
   if (view.phase === "resolved" && !children.dataset.frozen) {
     // Freeze existing nodes in place instead of requiring clones made by lock.
@@ -149,22 +183,36 @@ function render() {
       const node = nodes.get(outcome.id);
       node.style.left = left + "px";
       node.style.width = widths[index] + "px";
+      node.style.setProperty("--result-left", left + "px");
+      node.style.setProperty("--result-width", widths[index] + "px");
       left += widths[index] - 10;
     });
-    // A newly opened overlay jumps directly to the elapsed result step.
-    if (view.resultStep >= 2) {
-      const winner = nodes.get(prediction.winning_outcome_id);
-      winner.style.transition = "none";
-      winner.style.left = "0px";
-      winner.style.width = children.clientWidth + "px";
-      void winner.offsetWidth;
-      winner.style.transition = "";
+  }
+  if (view.phase === "resolved") {
+    const age = Math.max(0, now - Date.parse(prediction.ended_at));
+    for (const outcome of prediction.outcomes) {
+      const node = nodes.get(outcome.id);
+      const losing = outcome.id !== prediction.winning_outcome_id && view.resultStep >= 1;
+      const winning = outcome.id === prediction.winning_outcome_id && view.resultStep >= 2;
+      // Set the negative delay only when entering the phase. Replays keep the
+      // same CSS animation; a late source resumes its elapsed pose without flashing.
+      if (losing && !node.classList.contains("is-loser")) node.style.setProperty("--loser-delay", -Math.max(0, age - POLICY.fadeLosersAtMs) + "ms");
+      if (winning && !node.classList.contains("is-winner")) node.style.setProperty("--winner-delay", -Math.max(0, age - POLICY.expandWinnerAtMs) + "ms");
+      node.classList.toggle("is-loser", losing);
+      node.classList.toggle("is-winner", winning);
+      // Keep a static final pose as well: frame loss or unavailable CSS motion
+      // must not prevent the right winner or the hard cleanup from being shown.
+      node.style.opacity = losing && age >= POLICY.fadeLosersAtMs + 800 ? "0" : "";
+      if (winning && age >= POLICY.expandWinnerAtMs + 1000) {
+        node.style.left = "0px";
+        node.style.width = children.clientWidth + "px";
+      }
     }
   }
   // This timer belongs to the renderer, never to a particular socket or CSS animation.
   // Wake exactly at sequence boundaries as well as the hard cleanup deadline.
-  const boundaries = view.hideAt ? [view.hideAt - 700, view.hideAt] : [];
-  if (view.phase === "resolved") boundaries.push(Date.parse(prediction.ended_at) + 3000, Date.parse(prediction.ended_at) + 5000);
+  const boundaries = view.hideAt ? [view.hideAt - POLICY.exitMs, view.hideAt] : [];
+  if (view.phase === "resolved") boundaries.push(...[POLICY.fadeLosersAtMs, POLICY.fadeLosersAtMs + 800, POLICY.expandWinnerAtMs, POLICY.expandWinnerAtMs + 1000].map((offset) => Date.parse(prediction.ended_at) + offset));
   const nextBoundary = Math.min(...boundaries.filter((time) => time > now));
   tickTimer = setTimeout(render, Math.max(1, Math.min(250, nextBoundary - now)));
   if (view.phase === "locked" && prediction.status === "active") requestSync();
@@ -347,3 +395,4 @@ setInterval(() => {
   }
 }, 5000);
 hide();
+prepareFonts();

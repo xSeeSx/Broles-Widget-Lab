@@ -56,10 +56,10 @@ try {
     title: "Quien gana la siguiente ronda?", locks_at: new Date(Date.now() + 60000).toISOString(), outcomes: [{ id: "outcome-1", title: "Opcion 1" }, { id: "outcome-2", title: "Opcion 2" }]
   } }) })));
   await reference.waitForTimeout(1800);
-  const selectors = [".prediction-title-text", ".prediction-time-text", ".progress-bar", ".progress-bar-text", ".progress-bar-percent-text", ".progress-bar-multiplier", ".progress-bar-users-text"];
+  const selectors = [".prediction-title-text", ".prediction-time-text", ".progress-bar", ".progress-bar-text", ".progress-bar-percent-text", ".progress-bar-multiplier", ".progress-bar-users-text", ".prediction-outcome > div"];
   const styles = (body, names) => names.map((selector) => {
     const node = body.querySelector(selector); const style = getComputedStyle(node); const rect = node.getBoundingClientRect();
-    return { selector, fontSize: style.fontSize, fontWeight: style.fontWeight, fontStyle: style.fontStyle, fontFamily: style.fontFamily,
+    return { selector, fontSize: style.fontSize, fontWeight: style.fontWeight, fontStyle: style.fontStyle, fontFamily: style.fontFamily, backgroundImage: style.backgroundImage, backgroundColor: style.backgroundColor, textShadow: style.textShadow,
       top: rect.top - body.querySelector(".prediction-overlay").getBoundingClientRect().top, height: rect.height };
   });
   const originalStyle = await reference.locator("body").evaluate(styles, selectors);
@@ -69,14 +69,16 @@ try {
   await reference.locator(".progress-bar-users-text").first().evaluate((node) => { node.lastChild.textContent = " …"; });
   const originalUnknownStyle = await reference.locator("body").evaluate(styles, selectors);
   await reference.locator(".progress-bar-users-text").first().evaluate((node) => { node.lastChild.textContent = " 0"; });
+  const beforeZeroRevision = Number(await root().getAttribute("data-revision"));
   await page.locator("#predictionNormalProgressButton").click();
-  await check(async () => (await geometry()).children.every((item) => item.users === "0"), "initial zero progress is received");
+  await check(async () => Number(await root().getAttribute("data-revision")) > beforeZeroRevision && (await geometry()).children.every((item) => item.users === "0"), "initial zero progress is received");
   const restoredStyle = await frame().locator("body").evaluate(styles, selectors);
   await writeFile("test-results/v2-original-style-comparison.json", JSON.stringify({ originalStyle, originalUnknownStyle, initialRestoredStyle, restoredStyle }, null, 2));
   await reference.screenshot({ path: "test-results/prediction-original-reference.png" });
   for (let index = 0; index < selectors.length; index++) {
     const original = originalStyle[index], restored = restoredStyle[index];
     assert.deepEqual([restored.fontSize, restored.fontWeight, restored.fontStyle, restored.fontFamily], [original.fontSize, original.fontWeight, original.fontStyle, original.fontFamily], selectors[index] + " retains original typography");
+    assert.deepEqual([restored.backgroundImage, restored.backgroundColor, restored.textShadow], [original.backgroundImage, original.backgroundColor, original.textShadow], selectors[index] + " retains original gradients, colors and shadows");
     assert(Math.abs(restored.top - original.top) < 2, selectors[index] + " retains original vertical placement: " + JSON.stringify({ original, restored }));
   }
   await reference.close();
@@ -132,6 +134,7 @@ try {
   assert.equal(Number(await root().getAttribute("data-hide-at")), deadline);
   await check(async () => await root().evaluate((node) => getComputedStyle(node).animationName === "fadeOut"), "exit animation starts", 4000);
   await page.waitForTimeout(300);
+  assert.equal(await frame().locator(".prediction-children").evaluate((node) => getComputedStyle(node).animationName), "slideOut", "Original bar exit is preserved");
   const exitOpacity = await root().evaluate((node) => Number(getComputedStyle(node).opacity));
   assert(exitOpacity > 0 && exitOpacity < 1, "Exit has an actual intermediate visible frame");
   await check(async () => !await root().isVisible(), "exit cleans up title and bars", 1500);
@@ -146,8 +149,11 @@ try {
   await check(async () => JSON.stringify(await values()) === '["50%","50%"]', "equal preset");
   await page.waitForTimeout(1600);
   await page.screenshot({ path: "test-results/v2-visual-tie.png" });
+  await enter([1, 1], [1, 1]);
   await page.locator("#predictionLockButton").click();
   await check(async () => await root().getAttribute("data-phase") === "locked", "lock");
+  assert.equal(await field(0, "channelPoints").inputValue(), "10000", "Lock preserves sent totals rather than committing an unsent draft");
+  assert.deepEqual(await values(), ["50%", "50%"]);
   const title = await frame().locator(".prediction-title-text").textContent();
   assert(title.startsWith("🛑 ") && title.endsWith(" 🛑"), "STOP is present at both ends");
   await page.screenshot({ path: "test-results/v2-visual-lock.png" });

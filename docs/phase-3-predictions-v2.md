@@ -21,7 +21,7 @@ Primero desplegar y verificar el puente v2 en el Worker correcto. Después copia
 
 El campo `workerUrl` apunta a `wss://losbroles.lessergio.workers.dev/ws/v2?broadcaster_id=133649243`. El Worker antiguo no implementa ese endpoint. Publicar solo el widget nuevo sin actualizar primero el puente dejaría la fuente sin sincronización.
 
-La posición y el ancho visual mantienen la referencia de 960 px con margen de 100 px. Se conservan Manrope, barras inclinadas y los colores amarillo, azul y rojo. El layout se ajusta entre dos y diez opciones; los porcentajes son los reales por puntos y los multiplicadores son orientativos. Antes de recibir los contadores, los porcentajes muestran el reparto inicial equitativo de la referencia original. Los contadores desconocidos siguen siendo null en el estado y los usuarios se muestran como `…`, sin fabricar ceros. El texto de Twitch se inserta con textContent.
+La posición y el ancho visual mantienen la referencia de 960 px con margen de 100 px. Se conservan Manrope, barras inclinadas y los colores amarillo, azul y rojo. El layout se ajusta entre dos y diez opciones; los porcentajes son los reales por puntos y los multiplicadores son orientativos. Antes de recibir los contadores, los porcentajes muestran el reparto inicial equitativo de la referencia original. Los contadores desconocidos siguen siendo null en el estado y los usuarios muestran el cero inicial de la referencia durante active si aún faltan contadores. Ese cero visual no sustituye el null del protocolo ni se persiste como dato real. El texto de Twitch se inserta con textContent.
 
 ## Recuperación y persistencia
 
@@ -29,9 +29,9 @@ La clave compartida `brolesPredictions133649243v2` guarda `{schemaVersion:2,snap
 
 Las transiciones se guardan inmediatamente; progress se agrupa durante un segundo. `store.set` no se trata como un acuse Promise garantizado. Un error de almacenamiento no impide que la pantalla siga recibiendo el servidor. Un snapshot confirmado con prediction=null limpia el widget y guarda el estado vacío versionado.
 
-El reloj usa server_now y una estimación mediante solicitud/respuesta, apoyada en performance.now. Su precisión depende de la latencia y la asimetría de la red. Se compara siempre con fechas absolutas: el aviso de bloqueo caduca a los quince segundos, el resultado a los diez. Una recarga a los ocho segundos del resultado deja unos dos segundos, no diez nuevos.
+El reloj usa server_now y una estimación mediante solicitud/respuesta, apoyada en performance.now. Su precisión depende de la latencia y la asimetría de la red. Se compara siempre con fechas absolutas: el bloqueo inicia su salida a los quince segundos y se limpia a los 15,7; el resultado inicia su salida a los 10,5 y se limpia a los 11,2. Una recarga a los ocho segundos del resultado deja unos 3,2 segundos de su secuencia original, sin reiniciarla.
 
-El render vuelve a comprobar el plazo al recibir estado, al recuperar visibilidad y mediante su temporizador independiente. A los tres segundos del resultado desaparecen las barras perdedoras y a los cinco se amplía la ganadora. Al llegar al plazo se fuerzan hidden, título vacío y eliminación de barras. No depende de animationend ni de clones creados previamente durante lock. Un resultado cancelado no muestra trofeos.
+El render vuelve a comprobar el plazo al recibir estado, al recuperar visibilidad y mediante su temporizador independiente. Tras la entrada original de medio segundo, a los 3,5 segundos del resultado empiezan a desaparecer las barras perdedoras y a los 5,5 se amplía la ganadora. A los 10,5 se conservan la salida de las barras con slideOut y el fadeOut del conjunto. Al llegar al plazo se fuerzan hidden, título vacío y eliminación de barras. No depende de animationend ni de clones creados previamente durante lock. Un resultado cancelado no muestra trofeos.
 
 ## Comprobaciones
 
@@ -55,8 +55,10 @@ La revisión final debe hacerse en una fuente Navegador de OBS real: fuente viva
 
 ## Regresiones visuales y controles
 
-Se ha restaurado el CSS original, la estructura de métricas con iconos, la entrada escalonada de barras y los STOP en ambos extremos. El resultado reinicia su entrada una sola vez incluso si llega directamente desde active. Las barras existentes se fijan en su posición al resolver; la perdedora se desvanece a los tres segundos y la ganadora se desplaza y amplía a los cinco, aunque no haya habido lock. El plazo absoluto sigue limpiando el DOM sin depender de animationend. Los porcentajes iniciales vuelven al reparto equitativo y el cálculo del ancho conserva las proporciones reales salvo el mínimo necesario para leer opciones pequeñas.
+Se ha restaurado el CSS original, la estructura de métricas con iconos, la entrada escalonada de barras y los STOP en ambos extremos. El resultado reinicia su entrada una sola vez incluso si llega directamente desde active. Las barras existentes se fijan en su posición al resolver; la perdedora se desvanece a los 3,5 segundos y la ganadora se desplaza y amplía a los 5,5, aunque no haya habido lock. El plazo absoluto sigue limpiando el DOM sin depender de animationend. Los porcentajes iniciales vuelven al reparto equitativo y el cálculo del ancho conserva las proporciones reales salvo el mínimo necesario para leer opciones pequeñas.
 
 El laboratorio incluye **Empate exacto de puntos**. Begin limpia la selección del resultado; Resolver exige elegirlo expresamente. Un reparto igualado no determina el resultado de Twitch ni provoca por sí solo una victoria o cancelación.
 
 Los dos botones de envío usan los campos numéricos actuales como totales acumulados. El laboratorio muestra los totales enviados y bloquea una bajada en modo Twitch, con un aviso junto a los controles, en vez de emitirla y mostrar cifras distintas porque el puente conserva los máximos. Iniciar otra predicción pone los contadores a cero. El preset de empate iguala a los totales más altos existentes para no provocar una bajada. La batería visual edita los inputs reales, verifica 25/75 en porcentajes, geometría y almacenamiento, y compara tipografía y posiciones verticales con los archivos originales.
+
+La comparación función por función y sus criterios de aceptación están en [Conservación visual del original](original-prediction-visual-parity.md).

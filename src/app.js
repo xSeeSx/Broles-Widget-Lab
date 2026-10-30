@@ -6,7 +6,7 @@ import {
 
 import { createSEStoreHost } from "./harness/se-store-host.js";
 import { predictionEvent } from "./harness/prediction-contract.js";
-import { normalizePrediction, reducePrediction, eventTransition, presentationFor } from "./predictions/state.mjs";
+import { normalizePrediction, reducePrediction, eventTransition, presentationFor } from "./predictions/state.mjs?v=2";
 import { initializeOBSView } from "./obs-view.js";
 
 const LAB_SOURCE = "losbroles-widget-lab";
@@ -1838,6 +1838,7 @@ async function runResultSceneSwitchScenario() {
   const predictionId = state.prediction.id;
   const samePrediction = () => isCurrent() && state.prediction.id === predictionId && state.prediction.startedAt !== null;
   applyVotePattern("random");
+  renderPredictionControls();
   sendPredictionProgressWithCurrentVotes();
   lockPrediction();
   await pause(1000);
@@ -2266,6 +2267,25 @@ function validatePredictionVoteTotals() {
   return !invalid;
 }
 
+function restoreLastSentPredictionVotes() {
+  if (state.prediction.mode !== "twitch") return;
+  const previous = state.prediction.currentPrediction;
+  if (previous?.id !== state.prediction.id) return;
+  let changed = false;
+  for (const outcome of state.prediction.outcomes) {
+    const sent = previous.outcomes?.find((item) => item.id === outcome.id);
+    if (!sent) continue;
+    const users = sent.users ?? 0, points = sent.channel_points ?? 0;
+    changed ||= outcome.users !== users || outcome.channelPoints !== points;
+    outcome.users = users;
+    outcome.channelPoints = points;
+  }
+  if (changed && elements.predictionVoteFeedback) {
+    elements.predictionVoteFeedback.hidden = false;
+    elements.predictionVoteFeedback.textContent = "Se conservan los últimos votos enviados. Los cambios pendientes del formulario no se han aplicado.";
+  }
+}
+
 function addVotesToOutcome(index) {
   syncPredictionFromControls();
   if (!ensurePredictionStarted()) return;
@@ -2311,6 +2331,7 @@ function lockPrediction() {
     writeLog("warn", "lab", "Prediction is already locked.");
     return;
   }
+  restoreLastSentPredictionVotes();
   clearPredictionWindow();
   setPredictionRuntimeStatus("locked", "lock");
   state.prediction.lockedAt = new Date().toISOString();
@@ -2325,6 +2346,7 @@ function lockPredictionWithoutEnd() {
     writeLog("warn", "lab", "Prediction is already locked.");
     return;
   }
+  restoreLastSentPredictionVotes();
   clearPredictionWindow();
   setPredictionRuntimeStatus("locked_waiting_resolution", "lock");
   state.prediction.lockedAt = new Date().toISOString();
@@ -2357,14 +2379,14 @@ function endAfterLateLock() {
   writeLog("info", "lab", "End tardio solicitado despues de lock", {
     currentPredictionStatus: state.prediction.currentPredictionStatus
   });
-  endPredictionByOutcomeId(state.prediction.winningOutcomeId || state.prediction.outcomes[0]?.id || null, "resolved");
+  endPredictionByOutcomeId(state.prediction.winningOutcomeId, "resolved");
 }
 
 function endWithoutPriorLock() {
   syncPredictionFromControls();
   if (!ensurePredictionStarted()) return;
   setPredictionRuntimeStatus(getPredictionExpiredStatus(), "progress");
-  endPredictionByOutcomeId(state.prediction.winningOutcomeId || state.prediction.outcomes[0]?.id || null, "resolved");
+  endPredictionByOutcomeId(state.prediction.winningOutcomeId, "resolved");
 }
 
 function endPrediction(winnerIndex) {
@@ -2393,6 +2415,7 @@ function endPredictionByOutcomeId(winningOutcomeId, status) {
     writeLog("warn", "lab", "Elige expresamente el resultado o cancela para devolver los puntos. El reparto de apuestas no decide el ganador.");
     return;
   }
+  restoreLastSentPredictionVotes();
   clearPredictionWindow();
 
   state.prediction.status = status;
@@ -2471,7 +2494,8 @@ function schedulePredictionWindow() {
   predictionWindowTimer = window.setTimeout(() => {
     if (state.prediction.id !== id || state.prediction.mode !== "twitch" ||
         state.prediction.currentPredictionStatus !== "active") return;
-    // Preserve the server's scheduled lock time even if this task runs late.
+    // Preserve sent totals and the server's lock time if the editor has a draft.
+    restoreLastSentPredictionVotes();
     state.prediction.lockedAt = locksAt;
     setPredictionRuntimeStatus("locked_waiting_resolution", "lock");
     renderPredictionControls();
@@ -2986,6 +3010,12 @@ function sendWorkerPrediction(stage) {
     if (!ensurePredictionStarted()) return;
   }
 
+  if (stage !== "begin" && state.prediction.mode === "twitch" && !validatePredictionVoteTotals()) return;
+  if (stage === "end" && !state.prediction.winningOutcomeId) {
+    writeLog("warn", "lab", "Elige expresamente el resultado antes de enviar end.");
+    return;
+  }
+
   if (stage === "lock") {
     setPredictionRuntimeStatus("locked", "lock");
     state.prediction.lockedAt = new Date().toISOString();
@@ -2994,7 +3024,6 @@ function sendWorkerPrediction(stage) {
   if (stage === "end") {
     setPredictionRuntimeStatus("resolved", "end");
     state.prediction.endedAt = new Date().toISOString();
-    state.prediction.winningOutcomeId = state.prediction.winningOutcomeId || state.prediction.outcomes[0]?.id || null;
   }
 
   const payload = buildPredictionPayload(stage);

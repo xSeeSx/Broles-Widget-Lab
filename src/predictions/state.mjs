@@ -1,6 +1,11 @@
 // Shared by the production bridge, the copyable widget and the laboratory.
 export const PROTOCOL_VERSION = 2;
-export const POLICY = Object.freeze({ version: 1, lockMs: 15000, resultMs: 10000 });
+// Original visual sequence: 0.5s entrance, then 3s/5s/10s milestones,
+// followed by the 0.7s exit. All milestones stay anchored to Twitch timestamps.
+export const POLICY = Object.freeze({ version: 2, entryMs: 500,
+  fadeLosersAtMs: 3500, expandWinnerAtMs: 5500,
+  lockExitAtMs: 15000, lockMs: 15700, resultExitAtMs: 10500, resultMs: 11200,
+  exitMs: 700, barsExitMs: 400 });
 const terminal = (status) => status === "resolved" || status === "canceled";
 const rank = (status) => terminal(status) ? 2 : status === "locked" ? 1 : 0;
 export const copy = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
@@ -111,7 +116,7 @@ export function viewAt(snapshot, now) {
   if (terminal(prediction.status)) {
     const age = now - Date.parse(prediction.ended_at);
     return { visible: age >= -5000 && age < POLICY.resultMs, phase: prediction.status,
-      seconds: 0, resultStep: age >= 5000 ? 2 : age >= 3000 ? 1 : 0,
+      seconds: 0, resultStep: age >= POLICY.expandWinnerAtMs ? 2 : age >= POLICY.fadeLosersAtMs ? 1 : 0,
       hideAt: Date.parse(snapshot.presentation.result_hide_at) };
   }
   const locksAt = Date.parse(prediction.locks_at);
