@@ -44,7 +44,12 @@ try {
   const reference = await context.newPage();
   const legacyHtml = await readFile("widgets/prediccion/widget.html", "utf8");
   const legacyCss = await readFile("widgets/prediccion/widget.css", "utf8");
-  await reference.setContent(legacyHtml + "<style>" + legacyCss + "</style>");
+  await reference.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
+    html, body { min-height: 100%; margin: 0; }
+    body { display: grid; place-items: center; background: transparent; color: #fff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 0; }
+  </style><style>${legacyCss}</style></head><body>${legacyHtml}</body></html>`);
+  assert.equal(await reference.evaluate(() => document.compatMode), "CSS1Compat");
   await reference.addScriptTag({ content: `window.WebSocket = class extends EventTarget { constructor() { super(); window.referenceSocket = this; } };` });
   await reference.addScriptTag({ content: await readFile("widgets/prediccion/widget.js", "utf8") });
   await reference.evaluate(() => window.referenceSocket.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ type: "channel.prediction.begin", event: {
