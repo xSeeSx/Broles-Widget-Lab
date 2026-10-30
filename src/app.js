@@ -2584,7 +2584,7 @@ function buildPredictionPayload(stage) {
   const event = {
     ...fixture.event,
     id: state.prediction.id,
-    broadcaster_user_id: "mock-channel-id",
+    broadcaster_user_id: "133649243",
     broadcaster_user_login: "losbroles",
     broadcaster_user_name: "LosBroles",
     title: state.prediction.title,

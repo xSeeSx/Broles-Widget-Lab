@@ -430,7 +430,7 @@
     for (const socket of connections.values()) {
       if (socket.readyState === LabWebSocketMock.OPEN) {
         const value = isV2(socket) && isPredictionPayload(payload) ? (options.bridgeV2 || bridgeV2) : payload;
-        if (value) socket.receive(isV2(socket) && value.type === "bridge.state" ? { ...clone(value), server_now: new Date().toISOString() } : value);
+        if (value) socket.receive(isV2(socket) && isPredictionPayload(payload) && value.type === "bridge.state" ? { ...clone(value), server_now: new Date().toISOString() } : value);
         delivered += 1;
       }
     }

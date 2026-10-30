@@ -87,6 +87,9 @@ try {
   await check(async () => !await b().locator(".prediction-overlay").isVisible(), "result deadline hides title and bars after replay/reload", 12000);
   assert.equal(await b().locator(".prediction-title-text").textContent(), "");
   assert.equal(await b().locator(".prediction-child").count(), 0);
+  await b().locator("body").evaluate((value) => window.__LAB_WORKER_MOCK__.broadcast(value), stored.snapshot);
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(await b().locator(".prediction-overlay").isVisible(), false, "Replaying an old server timestamp cannot rewind the result clock");
   await page.locator("#overlayRefreshButton").click();
   await check(async () => (await page.locator("#workerConnectionCount").textContent()) === "2", "expired result reconnects");
   assert.equal(await b().locator(".prediction-overlay").isVisible(), false, "Expired server snapshot stays hidden");
@@ -127,6 +130,6 @@ try {
   console.log("Prediction v2 browser acceptance checks passed.");
 } catch (error) {
   await page.screenshot({ path: "test-results/v2-failure.png" }).catch(() => {});
-  await writeFile("test-results/v2-failure.txt", String(error.stack) + "\n" + JSON.stringify(errors));
+  await writeFile("test-results/v2-failure.txt", String(error.stack) + "\n" + JSON.stringify(errors) + "\n" + await page.locator("#logList").textContent());
   throw error;
 } finally { await browser.close(); }

@@ -151,7 +151,10 @@ function receive(raw, activeSocket) {
     requests.delete(next.request_id);
     if (rtt >= 0 && rtt <= 10000) latency = rtt / 2;
   }
-  clockAnchor = { server: Date.parse(next.server_now) + latency, local: mono() };
+  const measuredServer = Date.parse(next.server_now) + latency;
+  // Replayed server_now must never rewind the renderer and resurrect an expired result.
+  const estimatedServer = clockAnchor && snapshot?.epoch === next.epoch ? Math.max(serverNow(), measuredServer) : measuredServer;
+  clockAnchor = { server: estimatedServer, local: mono() };
   const previous = snapshot;
   snapshot = next;
   confirmed = true;
