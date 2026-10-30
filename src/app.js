@@ -1727,13 +1727,20 @@ function runReloadOverlayBWhileLockedScenario() {
   setOverlayDeliveryTarget("A");
   beginNormalPrediction();
   lockPredictionWithoutEnd();
+  const predictionId = state.prediction.id;
+  const selectedWidget = state.selectedWidget;
   writeLog("info", "lab", "Escenario: Overlay B se recargara tras 16s mientras A esta locked", {
     step: "A begin + A lock"
   });
   window.setTimeout(() => {
+    if (state.prediction.id !== predictionId || state.selectedWidget !== selectedWidget ||
+        !["locked", "locked_waiting_resolution"].includes(state.prediction.currentPredictionStatus)) {
+      writeLog("info", "lab", "Escenario de recarga B cancelado: el widget o la predicción han cambiado");
+      return;
+    }
     duplicateOverlayInstance();
     refreshOverlay("B");
-    setOverlayDeliveryTarget(previousTarget);
+    if (state.overlays.deliveryTarget === "A") setOverlayDeliveryTarget(previousTarget);
     writeLog("info", "lab", "Escenario: Overlay B recreado; no se ha enviado end todavia", {
       currentPredictionStatus: state.prediction.currentPredictionStatus,
       replayMode: state.worker.replayMode
@@ -2234,6 +2241,7 @@ function lockPrediction() {
   clearPredictionWindow();
   setPredictionRuntimeStatus("locked", "lock");
   state.prediction.lockedAt = new Date().toISOString();
+  renderPredictionControls();
   emitTwitchPredictionPayload(buildPredictionPayload("lock"));
 }
 

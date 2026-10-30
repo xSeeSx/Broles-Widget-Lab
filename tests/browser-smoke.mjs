@@ -118,6 +118,7 @@ try {
   await page.locator("#overlayDeliveryTarget").selectOption("all");
   await page.locator("#overlayHideButton").click();
   await page.locator("#predictionLockButton").click();
+  assert(await page.locator('#predictionOutcomes input[data-outcome-field="users"]').first().isDisabled(), "Twitch valid mode freezes vote inputs after lock");
   await page.locator("#predictionResolveWinnerButton").click();
   await check(async () => (await wire(frameB)).type === "channel.prediction.end", "Deliver while hidden receives end");
 

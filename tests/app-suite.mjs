@@ -20,9 +20,11 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     elements.overlayDeliveryTarget = { value: "" };
     const testFrames = new Map();
     getOverlayFrame = (id) => testFrames.get(id);
+    duplicateOverlayInstance = () => { throw new Error("Stale scenario must not recreate an overlay"); };
     return { state, elements, testFrames, beginNormalPrediction, sendPredictionProgressWithCurrentVotes,
       lockPrediction, endPredictionByOutcomeId, setOverlayDeliveryTarget, getTargetFrameResult,
-      resetPredictionLabState, buildIframeDocument, startPredictionWindow, beginTenOutcomePrediction };
+      resetPredictionLabState, buildIframeDocument, startPredictionWindow, beginTenOutcomePrediction,
+      runReloadOverlayBWhileLockedScenario };
   `, { window, document, emitted, logs, predictionEvent, crypto: { randomUUID: () => String(++identity) } });
   const results = [];
   const test = (name, action) => { action(); results.push(name); };
@@ -62,6 +64,12 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     app.beginTenOutcomePrediction();
     assert(app.state.prediction.outcomes.length === count, "preset must not resize an active prediction");
     assert(app.state.prediction.id === id, "preset must not replace active ID");
+  });
+  test("a delayed B-reload scenario cannot mutate a later prediction", () => {
+    app.runReloadOverlayBWhileLockedScenario();
+    const callback = [...scheduled.values()].at(-1);
+    app.state.prediction.id = "later-prediction";
+    callback();
   });
   test("target changes are passive; hidden skip and destroyed frames are explicit", () => {
     app.state.overlays.instances.B = { id: "B", hidden: true, loaded: true };
