@@ -60,3 +60,5 @@ Se ha restaurado el CSS original, la estructura de métricas con iconos, la entr
 El laboratorio incluye **Empate exacto de puntos**. Begin limpia la selección del resultado; Resolver exige elegirlo expresamente. Un reparto igualado no determina el resultado de Twitch ni provoca por sí solo una victoria o cancelación.
 
 Los dos botones de envío usan los campos numéricos actuales como totales acumulados. El laboratorio muestra los totales enviados y bloquea una bajada en modo Twitch, con un aviso junto a los controles, en vez de emitirla y mostrar cifras distintas porque el puente conserva los máximos. Iniciar otra predicción pone los contadores a cero. El preset de empate iguala a los totales más altos existentes para no provocar una bajada. La batería visual edita los inputs reales, verifica 25/75 en porcentajes, geometría y almacenamiento, y compara tipografía y posiciones verticales con los archivos originales.
+
+La comparación función por función y sus criterios de aceptación están en [Conservación visual del original](original-prediction-visual-parity.md).
