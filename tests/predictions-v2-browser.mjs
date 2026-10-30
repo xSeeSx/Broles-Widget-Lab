@@ -33,10 +33,19 @@ try {
   await page.locator("#predictionApplyVotePatternButton").click();
   await page.locator("#predictionNormalProgressButton").click();
   await check(async () => !(await a().locator(".progress-bar-percent-text").allTextContents()).includes("…"), "progress supplies actual totals");
+  const seHarness = await readFile("src/harness/se-mock.js", "utf8");
+  await page.route("**/src/harness/se-mock.js", (route) => route.fulfill({ contentType: "text/javascript", body: seHarness + `
+    const delayedGet = window.SE_API.store.get;
+    window.SE_API.store.get = (key) => Promise.resolve(delayedGet(key)).then(value => new Promise(resolve => setTimeout(() => resolve(value), 1200)));
+  ` }));
   await panel("Overlay / OBS scenarios");
   await page.locator("#overlayDuplicateButton").click();
   await check(async () => await b().locator(".prediction-overlay").isVisible(), "new B recovers an active prediction without begin");
   assert.equal(await b().locator(".prediction-overlay").getAttribute("data-prediction-id"), firstId);
+  const livePercentages = await b().locator(".progress-bar-percent-text").allTextContents();
+  await new Promise((r) => setTimeout(r, 1400));
+  assert.deepEqual(await b().locator(".progress-bar-percent-text").allTextContents(), livePercentages, "A delayed initial store.get cannot override live progress");
+  await page.unroute("**/src/harness/se-mock.js");
   await page.locator("#predictionLockButton").click();
   await check(async () => await phase(b) === "locked", "lock reaches B");
   const lockDeadline = await b().locator(".prediction-overlay").getAttribute("data-hide-at");
