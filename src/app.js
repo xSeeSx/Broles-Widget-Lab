@@ -1783,7 +1783,7 @@ async function runResultSceneSwitchScenario() {
   await pause(1000);
   if (!samePrediction()) return;
   endPredictionByOutcomeId(state.prediction.outcomes[0]?.id, "resolved");
-  await pause(250);
+  await pause(750);
   if (!samePrediction()) return;
   // Explicit fault injection: closing WS may cancel the legacy renderer's cleanup.
   // This is a candidate failure mechanism, not a claim about OBS visibility.

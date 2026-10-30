@@ -63,7 +63,7 @@ El despliegue automatico se ejecuta con GitHub Actions desde `.github/workflows/
 
 ## Fase 1: contrato y límites de emulación
 
-La revisión de fidelidad, cobertura, pruebas y escenarios de resultado atascado está en [docs/phase-1-fidelity.md](docs/phase-1-fidelity.md). Para comprobar contratos sin dependencias: `node tests/contracts.mjs`. GitHub Actions ejecuta la misma suite. La comprobación visual en navegador y OBS es un paso independiente.
+La revisión de fidelidad, cobertura, pruebas y escenarios de resultado atascado está en [docs/phase-1-fidelity.md](docs/phase-1-fidelity.md). Para comprobar contratos sin dependencias: `node tests/contracts.mjs`. GitHub Actions ejecuta la misma suite y pruebas de iframes reales en Chromium, con capturas de Demo, Marco, Predicción, almacenamiento y la regresión del resultado atascado. El contraste con StreamElements real y OBS es un paso independiente.
 
 ## Mock de StreamElements
 

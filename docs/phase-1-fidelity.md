@@ -65,7 +65,11 @@ node tests/contracts.mjs
 
 La suite cubre almacenamiento compartido y persistente, notificaciones, sobrescritura, errores de lectura, carga automática, forma de eventos, ausencia de relleno artificial, URL de producción interceptada, recuento de conexiones, reset, historial, IDs nuevos, temporizadores por predicción y entrega A/B.
 
-Pendiente antes de declarar cerrada esta fase: probar la rama en un navegador real con Demo, Marco y Predicción, y contrastar al menos una captura de eventos de StreamElements real. Después, repetir las variantes de escena en OBS con sus opciones de apagar/refrescar fuente anotadas. La revisión no tuvo acceso al navegador conectado ni al entorno local, por lo que no afirma esa validación.
+GitHub Actions también ejecuta `tests/browser-smoke.mjs` en Chromium real. Comprueba carga de Demo, DOM de Marco, begin de Predicción, SE_API.store entre iframes A/B, destroy/show/refresh y persistencia al recargar la página. Guarda capturas en el artefacto `lab-browser-smoke`. Incluye una reproducción explícita del fallo legado de trofeos tras desconexión durante el resultado: ese fallo del widget de referencia es esperado, no es un criterio de éxito de la versión futura.
+
+Para ejecutar esa comprobación fuera de CI, instalar `playwright@1.64.1`, ejecutar `npx playwright install chromium`, servir la raíz en 127.0.0.1:4173 y lanzar `node tests/browser-smoke.mjs`.
+
+Pendiente de contraste externo: una captura de eventos de StreamElements real y las variantes de escena en OBS con sus opciones de apagar/refrescar fuente anotadas. La revisión no tuvo acceso al navegador personal conectado ni a OBS. Chromium en CI no sustituye ese contraste.
 
 ## Fuentes oficiales
 

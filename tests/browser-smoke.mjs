@@ -10,8 +10,8 @@ const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 const frameA = () => page.frameLocator('iframe[data-overlay-id="A"]');
 const frameB = () => page.frameLocator('iframe[data-overlay-id="B"]');
-const check = async (condition, label) => {
-  const deadline = Date.now() + 10000;
+const check = async (condition, label, timeout = 10000) => {
+  const deadline = Date.now() + timeout;
   while (!(await condition())) {
     if (Date.now() > deadline) throw new Error(label);
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -40,6 +40,15 @@ try {
   await page.locator("#predictionBeginNormalButton").click();
   await check(async () => (await frameA().locator("body").textContent()).includes("Quien gana"), "Production prediction receives begin over mocked Worker socket");
   await page.screenshot({ path: "test-results/prediccion.png", fullPage: true });
+
+  await openPanel("Overlay / OBS scenarios");
+  await page.locator("#overlayResultSceneButton").click();
+  await check(async () => (await page.locator("#logList").textContent()).includes("Result scene scenario complete."),
+    "Result scene-switch scenario completes", 25000);
+  assert((await frameB().locator(".prediction-title-text").textContent()).includes("🏆"), "Legacy trophy title reproduced");
+  assert(await frameB().locator(".prediction-overlay").isVisible(), "Legacy result remains visibly stuck");
+  console.log("KNOWN LEGACY BUG reproduced: B retains visible trophies after result lifetime and socket interruption.");
+  await page.screenshot({ path: "test-results/legacy-stuck-result.png", fullPage: true });
 
   // Exercise storage through an actual widget iframe and public SE_API.
   // No production widget source files are changed.
