@@ -1,3 +1,4 @@
+import { presentationFor, eventTransition, reducePrediction } from "../src/predictions/state.mjs";
 export async function runAppTests({ source, contract, evaluate, assert }) {
   const emitted = [];
   const logs = [];
@@ -24,8 +25,8 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     return { state, elements, testFrames, beginNormalPrediction, sendPredictionProgressWithCurrentVotes,
       lockPrediction, endPredictionByOutcomeId, setOverlayDeliveryTarget, getTargetFrameResult,
       resetPredictionLabState, buildIframeDocument, startPredictionWindow, beginTenOutcomePrediction,
-      runReloadOverlayBWhileLockedScenario };
-  `, { window, document, emitted, logs, predictionEvent, crypto: { randomUUID: () => String(++identity) } });
+      runReloadOverlayBWhileLockedScenario, buildPredictionPayload };
+  `, { window, document, emitted, logs, predictionEvent, presentationFor, eventTransition, reducePrediction, crypto: { randomUUID: () => String(++identity) } });
   const results = [];
   const test = (name, action) => { action(); results.push(name); };
 
@@ -40,6 +41,10 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     assert(emitted.map((x) => x.type).join(",") === "channel.prediction.begin,channel.prediction.progress,channel.prediction.lock,channel.prediction.end", "normal flow");
     app.beginNormalPrediction();
     assert(emitted.at(-1).event.id !== id, "new prediction ID");
+  });
+  test("generated prediction uses the broadcaster configured in the real widget", () => {
+    const payload = app.buildPredictionPayload("begin");
+    assert(payload.event.broadcaster_user_id === "133649243", "generator channel must match v2 protocol");
   });
   test("automatic lock timer belongs to the prediction that created it", () => {
     const callback = [...scheduled.values()].at(-1);

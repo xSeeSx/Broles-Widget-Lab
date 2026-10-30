@@ -48,6 +48,21 @@
       "fields": "widgets/prediccion/fields.json",
       "mocks": "widgets/prediccion/mocks/index.json",
       "notes": "Widget real de predicciones importado desde incoming/prediccion."
+    },
+    {
+      "id": "prediccion-v2",
+      "name": "Predicción v2",
+      "description": "Predicciones con estado completo, recuperación de overlays y caducidad absoluta.",
+      "version": "2.0.0",
+      "author": "Los Broles",
+      "category": "streamelements",
+      "width": 1920,
+      "height": 1080,
+      "html": "widgets/prediccion-v2/widget.html",
+      "css": "widgets/prediccion-v2/widget.css",
+      "js": "widgets/prediccion-v2/widget.js",
+      "fields": "widgets/prediccion-v2/fields.json",
+      "mocks": "widgets/prediccion/mocks/index.json"
     }
   ]
 }

@@ -14,6 +14,7 @@ jobs:
         with:
           node-version: "22"
       - run: node tests/contracts.mjs
+      - run: node scripts/build-predictions.mjs --check
   browser-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -30,6 +31,7 @@ jobs:
           server_pid=$!
           trap 'kill "$server_pid"' EXIT
           node tests/browser-smoke.mjs
+          node tests/predictions-v2-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
