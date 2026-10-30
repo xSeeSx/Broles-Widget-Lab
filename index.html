@@ -14,6 +14,10 @@
         <p class="eyebrow">StreamElements / Twitch sandbox</p>
         <h1>LosBroles Widget Lab</h1>
       </div>
+      <label class="tool-navigation">
+        <span class="sr-only">Ir a herramienta</span>
+        <select id="toolSelect" class="select-input" aria-label="Ir a herramienta"><option value="">Ir a herramienta…</option></select>
+      </label>
       <div id="appStatus" class="status-pill" role="status">Inicializando</div>
     </header>
 
@@ -22,6 +26,9 @@
         <section class="panel-section" data-panel-title="Widget">
           <label class="field-label" for="widgetSelect">Widget</label>
           <select id="widgetSelect" class="select-input"></select>
+          <button id="reloadWidgetButton" type="button" class="secondary-button">Recargar widget</button>
+          <details class="widget-info">
+            <summary>Información del widget y vista OBS</summary>
           <div id="widgetMeta" class="meta-block"></div>
           <a id="obsViewLink" href="?view=obs&amp;widget=prediccion&amp;controls=1" target="_blank" rel="noopener">Abrir vista de prueba para OBS</a>
           <p class="helper-text">Copia el enlace en una fuente Navegador de OBS. Usa Interactuar y F2 para mostrar u ocultar los controles. Los eventos de Twitch siguen siendo simulados.</p>
@@ -29,9 +36,121 @@
             <summary>Diagnóstico del entorno de render</summary>
             <pre id="obsDiagnostics" class="meta-block"></pre>
           </details>
+          </details>
         </section>
 
-        <section class="panel-section chat-panel" aria-label="Chat simulator" data-panel-title="Chat simulator">
+        <section class="panel-section prediction-panel" aria-label="Prediction Lab" data-panel-title="Prediction Lab" data-start-collapsed="true">
+          <h2>Prediction Lab</h2>
+          <div class="prediction-actions" aria-label="Acciones de predicción">
+            <button id="predictionBeginNormalButton" type="button">Iniciar predicción</button>
+            <div id="predictionStateSummary" class="prediction-state" role="status">Estado: idle</div>
+            <div class="quick-buttons">
+              <button id="predictionNormalProgressButton" type="button" class="secondary-button" title="Enviar los votos actuales del formulario">Enviar votos</button>
+              <button id="predictionLockButton" type="button" class="secondary-button">Bloquear apuestas</button>
+            </div>
+            <div class="prediction-resolution">
+              <label class="sr-only" for="predictionWinningOutcome">Opción ganadora</label>
+              <select id="predictionWinningOutcome" class="select-input" title="Opción ganadora"></select>
+              <button id="predictionResolveWinnerButton" type="button">Resolver</button>
+              <button id="predictionEndCanceledButton" type="button" class="secondary-button">Cancelar</button>
+            </div>
+          </div>
+          <p class="helper-text">Inicia → aplica o edita votos → envía votos → bloquea → elige ganador y resuelve. Son eventos simulados.</p>
+
+          <div class="control-group">
+            <h3>Configuración</h3>
+
+            <div class="segmented-controls" role="group" aria-label="Modo de prediccion">
+              <label class="toggle-row">
+                <input id="predictionTwitchValidMode" type="radio" name="predictionMode" value="twitch" checked>
+                <span>Reglas Twitch</span>
+              </label>
+              <label class="toggle-row">
+                <input id="predictionStressMode" type="radio" name="predictionMode" value="stress">
+                <span>Modo estrés</span>
+              </label>
+            </div>
+
+            <label class="field-label" for="predictionTitle">Título</label>
+            <input id="predictionTitle" class="text-input" type="text" value="Quien gana la siguiente ronda?">
+
+            <div class="split-fields">
+              <label>
+                <span class="field-label">Duración (s)</span>
+                <input id="predictionDuration" class="text-input" type="number" min="1" step="1" value="60">
+              </label>
+              <label>
+                <span class="field-label">Opciones</span>
+                <input id="predictionOutcomeCount" class="text-input" type="number" min="2" max="10" step="1" value="2">
+              </label>
+            </div>
+
+            <div class="quick-buttons" role="group" aria-label="Opciones rapidas">
+              <button type="button" class="secondary-button" data-prediction-count="2">2 opciones</button>
+              <button type="button" class="secondary-button" data-prediction-count="3">3 opciones</button>
+              <button type="button" class="secondary-button" data-prediction-count="5">5 opciones</button>
+              <button type="button" class="secondary-button" data-prediction-count="10">10 opciones</button>
+            </div>
+
+            <div id="predictionOutcomes" class="prediction-outcomes"></div>
+            <div id="predictionValidation" class="validation-summary" role="status">Limites Twitch activos.</div>
+          </div>
+
+          <div class="control-group">
+            <h3>Votos</h3>
+            <label class="field-label" for="predictionVotePattern">Generador de votos</label>
+            <select id="predictionVotePattern" class="select-input">
+              <option value="zero">Sin votos</option>
+              <option value="random" selected>Aleatorios</option>
+              <option value="all-option-1">Todos a la opción 1</option>
+              <option value="close-percentages">Porcentajes cercanos</option>
+              <option value="tiny-huge">Una opción pequeña y otra grande</option>
+              <option value="ten-uneven">10 opciones desiguales</option>
+            </select>
+
+            <div class="button-stack">
+              <button id="predictionApplyVotePatternButton" type="button" class="secondary-button">Aplicar votos</button>
+              <button id="predictionSendProgressButton" type="button">Enviar votos actuales</button>
+            </div>
+
+            <details class="advanced-block">
+              <summary>Sumar votos y enviar</summary>
+              <div class="button-stack">
+                <button id="predictionVoteOneButton" type="button" class="secondary-button">Sumar votos opcion 1</button>
+                <button id="predictionVoteTwoButton" type="button" class="secondary-button">Sumar votos opcion 2</button>
+                <button id="predictionVoteRandomButton" type="button" class="secondary-button">Sumar votos aleatorios</button>
+              </div>
+            </details>
+          </div>
+
+            <details class="advanced-block">
+              <summary>Atajos avanzados y reinicio</summary>
+              <div class="button-stack">
+                <button id="predictionCreateButton" type="button" class="secondary-button">Crear prediccion</button>
+                <button id="predictionBeginTenButton" type="button" class="secondary-button">Begin con 10 opciones</button>
+                <button id="predictionEndOneButton" type="button" class="secondary-button">Finalizar ganando opcion 1</button>
+                <button id="predictionEndTwoButton" type="button" class="secondary-button">Finalizar ganando opcion 2</button>
+                <button id="predictionCancelButton" type="button" class="secondary-button">Cancelar prediccion</button>
+                <button id="predictionResetButton" type="button" class="secondary-button">Reset total</button>
+              </div>
+            </details>
+
+          <details class="advanced-block" id="predictionStressScenarios">
+            <summary>Escenarios de estrés (requieren modo estrés)</summary>
+            <div class="button-stack">
+              <button id="predictionBeginOneSecondButton" type="button">Begin 1s stress</button>
+              <button id="predictionActiveExpiredButton" type="button">Active expired, no lock, no end</button>
+              <button id="predictionProgressExpiredButton" type="button">Progress despues de expirada</button>
+              <button id="predictionLockNoEndButton" type="button">Lock sin resolver</button>
+              <button id="predictionLockWaitFadeButton" type="button">Lock y esperar fade</button>
+              <button id="predictionEndLateLockButton" type="button">End despues de lock tardio</button>
+              <button id="predictionEndNoLockButton" type="button">End sin lock previo</button>
+              <button id="predictionResetLabStateButton" type="button" class="secondary-button">Reset lab state</button>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel-section chat-panel" aria-label="Chat simulator" data-panel-title="Chat simulator" data-start-collapsed="true">
           <h2>Chat simulator</h2>
 
           <label>
@@ -156,7 +275,7 @@
           <button id="copyDebugReportButton" type="button" class="secondary-button">Copy debug report</button>
         </section>
 
-        <section class="panel-section responsive-panel" aria-label="Responsive preview" data-panel-title="Responsive">
+        <section class="panel-section responsive-panel" aria-label="Responsive preview" data-panel-title="Responsive" data-start-collapsed="true">
           <h2>Responsive</h2>
           <label class="field-label" for="viewportPresetSelect">Preset</label>
           <select id="viewportPresetSelect" class="select-input">
@@ -184,7 +303,6 @@
         </section>
 
         <section class="panel-section button-stack" aria-label="Acciones" data-panel-title="StreamElements events" data-start-collapsed="true">
-          <button id="reloadWidgetButton" type="button">Reload widget</button>
           <button id="emitWidgetLoadButton" type="button" data-se-action="widgetLoad">onWidgetLoad</button>
           <button id="emitChatMessageButton" type="button" data-se-action="chatMessage">chat message</button>
           <button id="emitFollowButton" type="button" data-se-action="follow">follow</button>
@@ -202,117 +320,6 @@
           </div>
           <textarea id="eventPayload" class="payload-input" spellcheck="false"></textarea>
           <div id="payloadError" class="payload-error" role="alert" hidden></div>
-        </section>
-
-        <section class="panel-section prediction-panel" aria-label="Prediction Lab" data-panel-title="Prediction Lab" data-start-collapsed="true">
-          <h2>Prediction Lab</h2>
-
-          <div class="control-group">
-            <h3>Prediction setup</h3>
-
-            <div class="segmented-controls" role="group" aria-label="Modo de prediccion">
-              <label class="toggle-row">
-                <input id="predictionTwitchValidMode" type="radio" name="predictionMode" value="twitch" checked>
-                <span>Twitch valid mode</span>
-              </label>
-              <label class="toggle-row">
-                <input id="predictionStressMode" type="radio" name="predictionMode" value="stress">
-                <span>Stress mode</span>
-              </label>
-            </div>
-
-            <label class="field-label" for="predictionTitle">Titulo</label>
-            <input id="predictionTitle" class="text-input" type="text" value="Quien gana la siguiente ronda?">
-
-            <div class="split-fields">
-              <label>
-                <span class="field-label">Duracion</span>
-                <input id="predictionDuration" class="text-input" type="number" min="1" step="1" value="60">
-              </label>
-              <label>
-                <span class="field-label">Opciones</span>
-                <input id="predictionOutcomeCount" class="text-input" type="number" min="2" max="10" step="1" value="2">
-              </label>
-            </div>
-
-            <div class="quick-buttons" role="group" aria-label="Opciones rapidas">
-              <button type="button" class="secondary-button" data-prediction-count="2">2 opciones</button>
-              <button type="button" class="secondary-button" data-prediction-count="3">3 opciones</button>
-              <button type="button" class="secondary-button" data-prediction-count="5">5 opciones</button>
-              <button type="button" class="secondary-button" data-prediction-count="10">10 opciones Twitch max</button>
-            </div>
-
-            <label class="field-label" for="predictionWinningOutcome">winning_outcome_id</label>
-            <select id="predictionWinningOutcome" class="select-input"></select>
-
-            <div id="predictionOutcomes" class="prediction-outcomes"></div>
-            <div id="predictionValidation" class="validation-summary" role="status">Limites Twitch activos.</div>
-            <div id="predictionStateSummary" class="meta-block">Estado: idle</div>
-          </div>
-
-          <div class="control-group">
-            <h3>Vote generator</h3>
-            <label class="field-label" for="predictionVotePattern">Generador de votos</label>
-            <select id="predictionVotePattern" class="select-input">
-              <option value="zero">zero votes</option>
-              <option value="random" selected>random votes</option>
-              <option value="all-option-1">all votes option 1</option>
-              <option value="close-percentages">close percentages</option>
-              <option value="tiny-huge">one tiny option, one huge option</option>
-              <option value="ten-uneven">10 options with uneven votes</option>
-            </select>
-
-            <div class="button-stack">
-              <button id="predictionApplyVotePatternButton" type="button" class="secondary-button">Aplicar votos</button>
-              <button id="predictionSendProgressButton" type="button">Send progress</button>
-            </div>
-
-            <details class="advanced-block">
-              <summary>Quick vote shortcuts</summary>
-              <div class="button-stack">
-                <button id="predictionVoteOneButton" type="button" class="secondary-button">Sumar votos opcion 1</button>
-                <button id="predictionVoteTwoButton" type="button" class="secondary-button">Sumar votos opcion 2</button>
-                <button id="predictionVoteRandomButton" type="button" class="secondary-button">Sumar votos aleatorios</button>
-              </div>
-            </details>
-          </div>
-
-          <div class="control-group">
-            <h3>Normal flow</h3>
-            <div class="button-stack">
-              <button id="predictionBeginNormalButton" type="button">Begin</button>
-              <button id="predictionNormalProgressButton" type="button">Progress</button>
-              <button id="predictionLockButton" type="button">Lock</button>
-              <button id="predictionResolveWinnerButton" type="button">End selected winner</button>
-              <button id="predictionEndCanceledButton" type="button" class="secondary-button">Cancel</button>
-            </div>
-
-            <details class="advanced-block">
-              <summary>Advanced shortcuts</summary>
-              <div class="button-stack">
-                <button id="predictionCreateButton" type="button" class="secondary-button">Crear prediccion</button>
-                <button id="predictionBeginTenButton" type="button" class="secondary-button">Begin con 10 opciones</button>
-                <button id="predictionEndOneButton" type="button" class="secondary-button">Finalizar ganando opcion 1</button>
-                <button id="predictionEndTwoButton" type="button" class="secondary-button">Finalizar ganando opcion 2</button>
-                <button id="predictionCancelButton" type="button" class="secondary-button">Cancelar prediccion</button>
-                <button id="predictionResetButton" type="button" class="secondary-button">Reset total</button>
-              </div>
-            </details>
-          </div>
-
-          <div class="control-group">
-            <h3>Stress scenarios</h3>
-            <div class="button-stack">
-              <button id="predictionBeginOneSecondButton" type="button">Begin 1s stress</button>
-              <button id="predictionActiveExpiredButton" type="button">Active expired, no lock, no end</button>
-              <button id="predictionProgressExpiredButton" type="button">Progress despues de expirada</button>
-              <button id="predictionLockNoEndButton" type="button">Lock sin resolver</button>
-              <button id="predictionLockWaitFadeButton" type="button">Lock y esperar fade</button>
-              <button id="predictionEndLateLockButton" type="button">End despues de lock tardio</button>
-              <button id="predictionEndNoLockButton" type="button">End sin lock previo</button>
-              <button id="predictionResetLabStateButton" type="button" class="secondary-button">Reset lab state</button>
-            </div>
-          </div>
         </section>
 
         <section class="panel-section worker-panel" aria-label="Cloudflare Worker mock" data-panel-title="Worker WebSocket" data-start-collapsed="true">
