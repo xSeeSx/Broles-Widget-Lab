@@ -136,6 +136,8 @@ try {
   assert.equal((await wire(frameB)).event.ended_at, (await wire(frameA)).event.ended_at, "Replay preserves absolute end time");
 
   await page.locator("#predictionBeginNormalButton").click();
+  await page.locator("#predictionApplyVotePatternButton").click();
+  await page.locator("#predictionNormalProgressButton").click();
   await page.locator("#predictionLockButton").click();
   await page.locator("#workerReplayMode").selectOption("current-snapshot");
   await page.locator("#overlayRefreshButton").click();
@@ -144,6 +146,9 @@ try {
   await page.locator("#predictionEndCanceledButton").click();
   await check(async () => (await wire(frameB)).event?.status === "canceled", "Cancellation payload reaches B");
   assert.equal((await wire(frameB)).event.winning_outcome_id, null);
+  const canceledPredictors = (await wire(frameB)).event.outcomes.flatMap((outcome) => outcome.top_predictors);
+  assert(canceledPredictors.length > 0, "Cancellation check has actual participants");
+  assert(canceledPredictors.every((predictor) => predictor.channel_points_won === 0), "Canceled predictions award zero points, not null");
 
   await page.locator("#predictionStressMode").check();
   await page.locator("#predictionBeginOneSecondButton").click();

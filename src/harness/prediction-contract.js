@@ -12,8 +12,8 @@ export function predictionEvent(stage, source) {
       result.channel_points = outcome.channel_points;
       result.top_predictors = (outcome.top_predictors || []).map((predictor) => ({
         ...predictor,
-        channel_points_won: stage === "end" && source.status === "resolved"
-          ? (outcome.id === source.winning_outcome_id ? predictor.channel_points_won : 0)
+        channel_points_won: stage === "end"
+          ? (source.status === "resolved" && outcome.id === source.winning_outcome_id ? predictor.channel_points_won : 0)
           : null
       }));
     }
