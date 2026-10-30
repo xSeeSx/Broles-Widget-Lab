@@ -377,7 +377,7 @@
             <option value="skip">Skip delivery while hidden</option>
             <option value="destroy">Destroy iframe when hidden</option>
           </select>
-          <div class="helper-text">Destroy iframe simula Browser Source apagada o recargada; al mostrar se recrea y depende del replay mode.</div>
+          <div class="helper-text">Deliver mantiene la fuente viva. Skip descarta eventos del Worker como inyección de fallos, no es el comportamiento normal de OBS. Destroy apaga la fuente y la recrea al mostrarla. SE_API.store se comparte entre fuentes vivas.</div>
 
           <div class="button-stack">
             <button id="overlayHideButton" type="button">Hide source</button>
@@ -389,6 +389,7 @@
             <button id="overlayReloadBLockedButton" type="button">Reload Overlay B while prediction is locked</button>
             <button id="overlayEndHiddenButton" type="button">End while hidden</button>
             <button id="overlayReconnectExpiredButton" type="button">Reconnect while active expired</button>
+            <button id="overlayResultSceneButton" type="button">Result + B disconnect + scene switch (stress)</button>
           </div>
 
           <div id="overlayStatus" class="meta-block">Overlay A activo.</div>

@@ -84,11 +84,15 @@
       return;
     }
 
-    predictionState.currentPrediction = clone(nextState.currentPrediction) || predictionState.currentPrediction;
+    if (Object.prototype.hasOwnProperty.call(nextState, "currentPrediction")) {
+      predictionState.currentPrediction = clone(nextState.currentPrediction);
+    }
     predictionState.predictionHistory = Array.isArray(nextState.predictionHistory)
       ? clone(nextState.predictionHistory)
       : predictionState.predictionHistory;
-    predictionState.lastPredictionPayload = clone(nextState.lastPredictionPayload) || predictionState.lastPredictionPayload;
+    if (Object.prototype.hasOwnProperty.call(nextState, "lastPredictionPayload")) {
+      predictionState.lastPredictionPayload = clone(nextState.lastPredictionPayload);
+    }
     predictionState.currentPredictionStatus = nextState.currentPredictionStatus || predictionState.currentPredictionStatus;
     predictionState.currentPredictionStage = nextState.currentPredictionStage || predictionState.currentPredictionStage;
   }
@@ -407,17 +411,24 @@
 
   function broadcast(payload, options = {}) {
     let delivered = 0;
-    const openConnections = connections.size;
+    const openConnections = Array.from(connections.values()).filter((socket) => socket.readyState === LabWebSocketMock.OPEN).length;
 
     if (options.recordPrediction !== false) {
       updatePredictionStateFromPayload(payload);
     }
 
     for (const socket of connections.values()) {
-      socket.receive(payload);
-      delivered += 1;
+      if (socket.readyState === LabWebSocketMock.OPEN) {
+        socket.receive(payload);
+        delivered += 1;
+      }
     }
 
+    if (delivered === 0) {
+      log("warn", "No mocked WebSocket connections open. The widget may be hidden, reloading or not connected.", {
+        delivered, openConnections, overlayId
+      });
+    }
     emitWorkerConsole({
       kind: "broadcast",
       connectionId: "*",
@@ -551,7 +562,7 @@
   window.addEventListener("message", (event) => {
     const data = event.data;
 
-    if (!data || data.source !== LAB_SOURCE) {
+    if (event.source !== parent || !data || data.source !== LAB_SOURCE) {
       return;
     }
 
@@ -571,7 +582,7 @@
     }
 
     if (data.type === "WORKER_MOCK_BROADCAST") {
-      broadcast(data.payload);
+      broadcast(data.payload, { recordPrediction: data.recordPrediction !== false });
       return;
     }
 
