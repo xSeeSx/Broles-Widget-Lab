@@ -314,10 +314,6 @@ body { width: min(960px, calc(100vw - 200px)); }
 .prediction-overlay[data-phase="resolved"] .prediction-child { transition: left 1s ease, width 1s ease, opacity .8s ease; }
 .prediction-child.is-loser { opacity: 0; }
 .prediction-overlay.is-exiting { animation: fadeOut .7s ease-in forwards; animation-delay: 0s !important; }
-.is-many .progress-bar-text { font-size: 12px; padding-right: 12px; }
-.is-many .progress-bar-users { margin-right: 32px; padding-right: 3px; }
-.is-many .progress-bar-multiplier { padding-right: 3px; margin-right: 0; }
-.is-many .progress-bar-multiplier, .is-many .progress-bar-users-text { font-size: 10px; }
 @media (prefers-reduced-motion: reduce) {
   .fadeIn, .slideIn, .heartbeat { animation: none; }
   .prediction-child, .prediction-time-text { transition: none !important; }

@@ -2550,6 +2550,8 @@ function applyVotePattern(pattern) {
   }
 
   const outcomes = state.prediction.outcomes;
+  const equalUsers = Math.max(10, ...outcomes.map((outcome) => outcome.users));
+  const equalPoints = Math.max(10000, ...outcomes.map((outcome) => outcome.channelPoints));
   outcomes.forEach((outcome) => {
     outcome.users = 0;
     outcome.channelPoints = 0;
@@ -2566,7 +2568,7 @@ function applyVotePattern(pattern) {
   }
 
   if (pattern === "equal") {
-    outcomes.forEach((outcome) => { outcome.users = 10; outcome.channelPoints = 10000; });
+    outcomes.forEach((outcome) => { outcome.users = equalUsers; outcome.channelPoints = equalPoints; });
     return;
   }
 

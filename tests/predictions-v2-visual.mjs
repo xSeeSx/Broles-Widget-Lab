@@ -25,7 +25,7 @@ const enter = async (users, points) => {
 const geometry = () => frame().locator(".prediction-children").evaluate((container) => ({
   width: container.clientWidth,
   children: [...container.children].map((node) => ({ left: node.offsetLeft, top: node.offsetTop, width: node.getBoundingClientRect().width, opacity: Number(getComputedStyle(node).opacity),
-    percent: node.querySelector(".progress-bar-percent-text").textContent, users: node.querySelector(".progress-bar-users-text").textContent }))
+    percent: node.querySelector(".progress-bar-percent-text").textContent, users: node.querySelector(".progress-bar-users-text").textContent.trim() }))
 }));
 try {
   await page.goto("http://127.0.0.1:4173/?widget=prediccion-v2", { waitUntil: "networkidle" });
@@ -40,6 +40,32 @@ try {
   const separation = initial.children[1].left - initial.children[0].left - initial.children[0].width;
   assert(Math.abs(separation + 10) < 2, "Original overlapping bounds leave compact slanted gaps");
   await page.screenshot({ path: "test-results/v2-visual-initial.png" });
+  // Render the untouched legacy assets with the same begin data as a visual reference.
+  const reference = await context.newPage();
+  const legacyHtml = await readFile("widgets/prediccion/widget.html", "utf8");
+  const legacyCss = await readFile("widgets/prediccion/widget.css", "utf8");
+  await reference.setContent(legacyHtml + "<style>" + legacyCss + "</style>");
+  await reference.addScriptTag({ content: `window.WebSocket = class extends EventTarget { constructor() { super(); window.referenceSocket = this; } };` });
+  await reference.addScriptTag({ content: await readFile("widgets/prediccion/widget.js", "utf8") });
+  await reference.evaluate(() => window.referenceSocket.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ type: "channel.prediction.begin", event: {
+    title: "Quien gana la siguiente ronda?", locks_at: new Date(Date.now() + 60000).toISOString(), outcomes: [{ id: "outcome-1", title: "Opcion 1" }, { id: "outcome-2", title: "Opcion 2" }]
+  } }) })));
+  await reference.waitForTimeout(1800);
+  const selectors = [".prediction-title-text", ".prediction-time-text", ".progress-bar", ".progress-bar-text", ".progress-bar-percent-text", ".progress-bar-multiplier", ".progress-bar-users-text"];
+  const styles = (body, names) => names.map((selector) => {
+    const node = body.querySelector(selector); const style = getComputedStyle(node); const rect = node.getBoundingClientRect();
+    return { selector, fontSize: style.fontSize, fontWeight: style.fontWeight, fontStyle: style.fontStyle, fontFamily: style.fontFamily,
+      top: rect.top - body.querySelector(".prediction-overlay").getBoundingClientRect().top, height: rect.height };
+  });
+  const originalStyle = await reference.locator("body").evaluate(styles, selectors);
+  const restoredStyle = await frame().locator("body").evaluate(styles, selectors);
+  for (let index = 0; index < selectors.length; index++) {
+    const original = originalStyle[index], restored = restoredStyle[index];
+    assert.deepEqual([restored.fontSize, restored.fontWeight, restored.fontStyle, restored.fontFamily], [original.fontSize, original.fontWeight, original.fontStyle, original.fontFamily], selectors[index] + " retains original typography");
+    assert(Math.abs(restored.top - original.top) < 2, selectors[index] + " retains original vertical placement");
+  }
+  await reference.screenshot({ path: "test-results/prediction-original-reference.png" });
+  await reference.close();
 
   // Use the real numeric fields. Never substitute an internal state assignment.
   await enter([25, 75], [10000, 30000]);
@@ -49,7 +75,6 @@ try {
     const data = await geometry(); return Math.abs(data.children[0].width / (data.children[0].width + data.children[1].width) - .25) < .015;
   }, "manual 25/75 also reaches bar geometry");
   assert.deepEqual((await geometry()).children.map((item) => item.users), ["25", "75"]);
-  const stored = await frame().locator("body").evaluate(() => window.SE_API.store.get("brolesPredictions133649243v2"));
   // Progress writes are debounced; the eventual store must contain exactly the edited totals.
   await check(async () => frame().locator("body").evaluate(async () => {
     const saved = await window.SE_API.store.get("brolesPredictions133649243v2");
