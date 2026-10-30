@@ -9,6 +9,8 @@
   let interceptWorkerWebSocket = initialConfig.interceptWebSocket !== false;
   let workerUrl = String(initialConfig.workerUrl || "");
   let replayMode = String(initialConfig.replayMode || "welcome");
+  let bridgeV2 = window.__LAB_WORKER_INITIAL_STATE__?.bridgeV2 || null;
+  const isV2 = (socket) => socket.url.includes("/ws/v2");
   const overlayId = window.__LAB_OVERLAY_ID__ || "A";
   const predictionState = {
     currentPrediction: null,
@@ -285,6 +287,10 @@
         summary: "Widget sent message to Worker mock",
         payload: parseSocketMessage(data)
       });
+      const request = parseSocketMessage(data);
+      if (isV2(this) && request?.type === "bridge.sync") {
+        sendToLab("WORKER_V2_SYNC_REQUEST", { connectionId: this.id, requestId: request.request_id });
+      }
       log("info", "Worker WebSocket mock received widget message", {
         connectionId: this.id,
         payload: parseSocketMessage(data)
@@ -356,6 +362,10 @@
   }
 
   function replayOnOpen(socket) {
+    if (isV2(socket)) {
+      if (bridgeV2) socket.receive({ ...clone(bridgeV2), server_now: new Date().toISOString() });
+      return;
+    }
     if (replayMode === "none") {
       return;
     }
@@ -419,7 +429,8 @@
 
     for (const socket of connections.values()) {
       if (socket.readyState === LabWebSocketMock.OPEN) {
-        socket.receive(payload);
+        const value = isV2(socket) && isPredictionPayload(payload) ? (options.bridgeV2 || bridgeV2) : payload;
+        if (value) socket.receive(isV2(socket) && value.type === "bridge.state" ? { ...clone(value), server_now: new Date().toISOString() } : value);
         delivered += 1;
       }
     }
@@ -516,6 +527,7 @@
     workerUrl = String(nextConfig.workerUrl || "");
     replayMode = String(nextConfig.replayMode || "welcome");
     mergePredictionState(nextConfig.predictionState);
+    if (nextConfig.predictionState?.bridgeV2) bridgeV2 = clone(nextConfig.predictionState.bridgeV2);
     emitWorkerConsole({
       kind: "config",
       connectionId: "-",
@@ -566,6 +578,13 @@
       return;
     }
 
+    if (data.type === "WORKER_V2_STATE") {
+      bridgeV2 = clone(data.payload);
+      for (const socket of connections.values()) {
+        if (isV2(socket) && (!data.connectionId || data.connectionId === socket.id)) socket.receive(bridgeV2);
+      }
+      return;
+    }
     if (data.type === "WORKER_MOCK_CONFIG") {
       configure(data.config);
       return;
@@ -582,7 +601,7 @@
     }
 
     if (data.type === "WORKER_MOCK_BROADCAST") {
-      broadcast(data.payload, { recordPrediction: data.recordPrediction !== false });
+      broadcast(data.payload, { recordPrediction: data.recordPrediction !== false, bridgeV2: data.bridgeV2 });
       return;
     }
 

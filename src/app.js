@@ -6,6 +6,7 @@ import {
 
 import { createSEStoreHost } from "./harness/se-store-host.js";
 import { predictionEvent } from "./harness/prediction-contract.js";
+import { normalizePrediction, reducePrediction, eventTransition, presentationFor } from "./predictions/state.mjs";
 import { initializeOBSView } from "./obs-view.js";
 
 const LAB_SOURCE = "losbroles-widget-lab";
@@ -146,7 +147,10 @@ const state = {
     workerUrl: "",
     replayMode: "welcome",
     connectionLogCount: 0,
-    openConnections: new Map()
+    openConnections: new Map(),
+    bridgeV2: { epoch: "lab-" + crypto.randomUUID(), revision: 0, prediction: null, seen: [], cursor: null, watermark: null },
+    helixV2: null,
+    eventClock: 0n
   },
   overlays: {
     activeId: "A",
@@ -591,7 +595,7 @@ function setupCollapsibleSections() {
 function focusWidgetControls(widgetId) {
   const section = document.querySelector(".prediction-panel");
   const content = section.querySelector(".panel-content");
-  const expanded = widgetId === "prediccion";
+  const expanded = ["prediccion", "prediccion-v2"].includes(widgetId);
   content.hidden = !expanded;
   section.classList.toggle("is-collapsed", !expanded);
   section.querySelector(".panel-toggle").setAttribute("aria-expanded", String(expanded));
@@ -2381,6 +2385,7 @@ function cancelPrediction() {
 function resetPrediction() {
   clearPredictionWindow();
   state.prediction = createDefaultPredictionState();
+  resetBridgeV2();
   renderPredictionControls();
   writeLog("info", "lab", "Evento emitido: twitch.prediction.reset", {
     timestamp: new Date().toISOString(),
@@ -2403,6 +2408,7 @@ function resetPredictionLabState() {
   state.prediction.lockedAt = null;
   state.prediction.endedAt = null;
   state.prediction.mode = keepMode;
+  resetBridgeV2();
   window.clearTimeout(state.prediction.lockFadeTimer);
   state.prediction.lockFadeTimer = null;
   renderPredictionControls();
@@ -2692,7 +2698,7 @@ function emitTwitchPredictionPayload(payload) {
 }
 
 function mirrorPredictionPayloadToWorkerForActiveWidget(payload, sourceLabel) {
-  if (state.selectedWidget?.id !== "prediccion") {
+  if (!["prediccion", "prediccion-v2"].includes(state.selectedWidget?.id)) {
     return;
   }
 
@@ -2709,6 +2715,46 @@ function mirrorPredictionPayloadToWorkerForActiveWidget(payload, sourceLabel) {
   postWorkerBroadcast("WORKER_MOCK_BROADCAST", payload, `Prediccion compat ${payload.type}`, {
     recordPrediction: false
   });
+}
+
+function buildBridgeV2Snapshot() {
+  return { type: "bridge.state", protocol_version: 2, broadcaster_id: "133649243",
+    epoch: state.worker.bridgeV2.epoch, revision: state.worker.bridgeV2.revision,
+    server_now: new Date().toISOString(),
+    sync: { status: "ready", source: "lab-helix-eventsub", last_verified_at: new Date().toISOString(), eventsub_connected: true },
+    prediction: cloneJson(state.worker.bridgeV2.prediction), presentation: presentationFor(state.worker.bridgeV2.prediction) };
+}
+
+function recordBridgeV2Payload(payload) {
+  const ns = BigInt(Date.now()) * 1000000n;
+  state.worker.eventClock = ns > state.worker.eventClock ? ns : state.worker.eventClock + 1n;
+  const at = new Date(Number(state.worker.eventClock / 1000000n)).toISOString().replace("Z", String(state.worker.eventClock % 1000000n).padStart(6, "0") + "Z");
+  const result = eventTransition(state.worker.bridgeV2, { ...payload,
+    metadata: payload.metadata || { message_id: crypto.randomUUID(), message_timestamp: at } }, "133649243");
+  if (!result.accepted) {
+    writeLog("warn", "worker", "Bridge v2 rejected injected event: " + result.reason);
+    return;
+  }
+  state.worker.bridgeV2 = { ...result.model, revision: state.worker.bridgeV2.revision + 1 };
+  // The simulated Helix endpoint has its own full dataset. Begin itself still has no vote fields.
+  state.worker.helixV2 = cloneJson(result.model.prediction);
+  if (payload.type === "channel.prediction.begin") {
+    state.worker.helixV2.outcomes.forEach((outcome) => { outcome.users = 0; outcome.channel_points = 0; });
+  }
+}
+
+function reconcileBridgeV2FromHelix() {
+  const result = reducePrediction(state.worker.bridgeV2.prediction, state.worker.helixV2);
+  if (result.accepted && JSON.stringify(result.prediction) !== JSON.stringify(state.worker.bridgeV2.prediction)) {
+    state.worker.bridgeV2 = { ...state.worker.bridgeV2, prediction: result.prediction, revision: state.worker.bridgeV2.revision + 1 };
+  }
+}
+
+function resetBridgeV2() {
+  state.worker.bridgeV2 = { ...state.worker.bridgeV2, revision: state.worker.bridgeV2.revision + 1, prediction: null, cursor: null, seen: [], watermark: null };
+  state.worker.helixV2 = null;
+  // A reset is a confirmed, versioned empty state, not merely an erased client timer.
+  postToWidgetFrames({ source: LAB_SOURCE, type: "WORKER_V2_STATE", payload: buildBridgeV2Snapshot() });
 }
 
 function summarizePredictionPayload(payload) {
@@ -2742,6 +2788,7 @@ function recordPredictionPayload(payload, label = "prediction") {
   const stage = String(payload.type).replace("channel.prediction.", "");
   const event = cloneJson(payload.event || {});
   const status = inferPredictionStatusFromPayload(payload);
+  recordBridgeV2Payload(payload);
   state.prediction.lastPredictionPayload = cloneJson(payload);
   state.prediction.currentPrediction = event;
   state.prediction.currentPredictionStatus = status;
@@ -2785,6 +2832,7 @@ function inferPredictionStatusFromPayload(payload) {
 
 function buildWorkerPredictionStateSnapshot() {
   return {
+    bridgeV2: buildBridgeV2Snapshot(),
     currentPrediction: cloneJson(state.prediction.currentPrediction),
     predictionHistory: cloneJson(state.prediction.predictionHistory.map((item) => item.payload)),
     lastPredictionPayload: cloneJson(state.prediction.lastPredictionPayload),
@@ -2947,6 +2995,7 @@ function postWorkerBroadcast(type, payload, label, options = {}) {
     source: LAB_SOURCE,
     type,
     payload,
+    bridgeV2: buildBridgeV2Snapshot(),
     recordPrediction: false
   }, { target });
 
@@ -3351,6 +3400,13 @@ function handleWidgetMessage(event) {
   if (data.type === "LOG") {
     const prefix = data.overlayId ? `[${data.overlayId}] ` : "";
     writeLog(data.level || "log", "widget", `${prefix}${data.message || ""}`, data.data);
+  } else if (data.type === "WORKER_V2_SYNC_REQUEST") {
+    const overlayId = ["A", "B"].find((id) => getOverlayFrame(id)?.contentWindow === event.source);
+    if (getTargetFrameResult(overlayId).frames.length) {
+      reconcileBridgeV2FromHelix();
+      postToWidgetFrames({ source: LAB_SOURCE, type: "WORKER_V2_STATE",
+        connectionId: data.connectionId, payload: { ...buildBridgeV2Snapshot(), request_id: data.requestId } }, { target: overlayId });
+    }
   } else if (data.type === "WORKER_WS_LOG") {
     appendWorkerConnectionLog(data.entry || {});
   }

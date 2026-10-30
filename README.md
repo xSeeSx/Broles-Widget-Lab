@@ -85,6 +85,12 @@ La [investigación de predicciones](docs/phase-2-twitch-predictions.md) document
 
 El [ejemplo de estado versión 2](docs/prediction-state-v2.example.json) es una propuesta de protocolo para implementar en fase 3. El mock y el widget legado siguen usando su protocolo actual. La investigación también corrige un campo del generador: los participantes de una predicción cancelada tienen channel_points_won=0, mientras progress/lock mantienen null.
 
+## Fase 3: Predicción v2
+
+La nueva **Predicción v2** se puede seleccionar junto a la referencia original. Recupera snapshots completos al conectar, conserva la caché en `SE_API.store` y oculta los resultados por su fecha absoluta aunque se corte el socket. El código y las instrucciones de instalación y pruebas están en [docs/phase-3-predictions-v2.md](docs/phase-3-predictions-v2.md).
+
+El puente está en el repositorio independiente [Broles-Predicciones-Worker](https://github.com/xSeeSx/Broles-Predicciones-Worker). La versión del laboratorio usa su mock; para instalar el widget en StreamElements hay que desplegar primero el puente v2 tras verificar la configuración real de Cloudflare.
+
 ## Mock de StreamElements
 
 `src/harness/se-mock.js` expone dentro del iframe:

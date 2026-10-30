@@ -1,0 +1,7 @@
+{
+  "workerUrl": {
+    "type": "text",
+    "label": "WebSocket del puente v2",
+    "value": "wss://losbroles.lessergio.workers.dev/ws/v2?broadcaster_id=133649243"
+  }
+}

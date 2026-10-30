@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; color: white; font-family: Manrope, sans-serif; }
+body { padding: 100px; }
+.prediction-overlay { width: min(960px, 100%); position: relative; text-align: center; }
+.prediction-overlay[hidden] { display: none !important; }
+.prediction-title { padding-bottom: 8px; text-shadow: 0 0 8px #212121; }
+.prediction-title-text { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.prediction-time-text { font-size: 28px; font-weight: 800; letter-spacing: -2px; }
+.prediction-time-text[hidden] { display: none; }
+.prediction-children { display: flex; align-items: end; gap: 10px; width: 100%; }
+.prediction-child { flex: 0 0 auto; min-width: 0; transition: width 700ms ease, opacity 500ms ease; overflow: hidden; }
+.progress-bar-stats { display: flex; min-width: 0; }
+.progress-bar-text { width: 100%; padding: 0 10px 4px; font-size: 14px; font-weight: 800; font-style: italic; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 0 5px #212121; }
+.progress-bar { position: relative; height: 30px; overflow: hidden; }
+.prediction-outcome { position: absolute; inset: 0; clip-path: polygon(15px 0, 100% 0, calc(100% - 15px) 100%, 0 100%); background: #ffbb00; }
+.prediction-outcome::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top left, #0008, transparent); }
+.progress-bar-percent-text { position: relative; line-height: 30px; font-family: "Franklin Gothic Medium", sans-serif; font-style: italic; text-shadow: 0 0 5px #262626; }
+.progress-bar-metrics { display: flex; justify-content: space-between; gap: 4px; padding: 4px 8px 0; font-size: 12px; font-weight: 600; font-style: italic; white-space: nowrap; text-shadow: 0 0 5px #212121; }
+.is-many .progress-bar-text, .is-many .progress-bar-metrics { font-size: 11px; padding-left: 3px; padding-right: 3px; }
+.prediction-child.is-loser { opacity: 0; }
+.prediction-child.is-collapsed { margin-right: -10px; }
+.fadeIn { animation: predictionIn 450ms ease-out both; }
+.prediction-overlay.is-exiting { animation: none; opacity: 0; transform: translateY(20px); transition: opacity 400ms ease, transform 400ms ease; }
+@keyframes predictionIn { from { opacity: 0; transform: translateY(25px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .fadeIn { animation: none; } .prediction-child, .prediction-overlay.is-exiting { transition: none; } }

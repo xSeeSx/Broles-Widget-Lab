@@ -1,3 +1,4 @@
+import { presentationFor, eventTransition, reducePrediction } from "../src/predictions/state.mjs";
 export async function runAppTests({ source, contract, evaluate, assert }) {
   const emitted = [];
   const logs = [];
@@ -25,7 +26,7 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
       lockPrediction, endPredictionByOutcomeId, setOverlayDeliveryTarget, getTargetFrameResult,
       resetPredictionLabState, buildIframeDocument, startPredictionWindow, beginTenOutcomePrediction,
       runReloadOverlayBWhileLockedScenario };
-  `, { window, document, emitted, logs, predictionEvent, crypto: { randomUUID: () => String(++identity) } });
+  `, { window, document, emitted, logs, predictionEvent, presentationFor, eventTransition, reducePrediction, crypto: { randomUUID: () => String(++identity) } });
   const results = [];
   const test = (name, action) => { action(); results.push(name); };
 
