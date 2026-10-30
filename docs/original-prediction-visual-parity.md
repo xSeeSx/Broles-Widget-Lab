@@ -24,6 +24,7 @@ El objetivo de la versión 2.0.1 es conservar las funciones visuales de `widgets
 - El resultado se reconstruye aunque falten begin o lock. No depende de clones creados en un evento anterior.
 - Las fechas de Twitch gobiernan los plazos compartidos. Recargar, repetir un paquete o leer KV no añade otros once segundos.
 - La limpieza elimina barras y título. Se ejecuta con un temporizador independiente de CSS y también al recuperar visibilidad.
+- Se precargan Manrope y los iconos antes de mostrar la primera pose, con una espera limitada. La espera no cambia ended_at ni el plazo: un resultado que caduque mientras cargan sigue oculto.
 - Hay una pose estática final: sin animaciones CSS, la ganadora sigue ocupando su sitio y el resultado caduca.
 - Una cancelación no inventa ganador ni muestra trofeos de victoria. El empate de apuestas no selecciona una opción.
 - Editar votos deja un borrador; Enviar usa esos totales. Bloquear o resolver conserva los últimos totales enviados y descarta el borrador pendiente, con aviso.

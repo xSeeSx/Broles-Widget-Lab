@@ -170,6 +170,11 @@ try {
       initial = await frame(late).locator("body").evaluate(() => window.SE_API.store.get("brolesPredictions133649243v2"));
       return initial?.schemaVersion === 2 && initial.snapshot.prediction === null;
     }, "late source has consumed initial ready state");
+    await check(async () => frame(late).locator("body").evaluate(() => {
+      const faces = [...document.fonts];
+      return faces.some((face) => face.family.includes("Manrope") && face.status === "loaded") &&
+        faces.some((face) => face.family.includes("Font Awesome 6 Free") && face.status === "loaded");
+    }), "brand fonts are loaded before recovering a visible result");
     const now = Date.now();
     const prediction = normalizePrediction({ id: "late-pose-" + age, broadcaster_id: "133649243", title: "Resultado recuperado",
       status: "RESOLVED", created_at: new Date(now - 90000).toISOString(), ended_at: new Date(now - age).toISOString(), prediction_window: 60,

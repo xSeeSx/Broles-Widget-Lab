@@ -175,11 +175,34 @@ let lastMessage = 0;
 let lastSync = -Infinity;
 let lastView = "";
 let loaded = false;
+let fontsReady = !document.fonts?.load;
 const requests = new Map();
 const retiredEpochs = new Set();
 const nodes = new Map();
 const warn = (code) => console.warn("[Predicciones v2] " + code);
 const serverNow = () => clockAnchor ? clockAnchor.server + mono() - clockAnchor.local : Date.now();
+
+function prepareFonts() {
+  if (fontsReady) return;
+  const finish = () => {
+    if (fontsReady) return;
+    fontsReady = true;
+    clearTimeout(timeout);
+    render();
+  };
+  const timeout = setTimeout(() => { warn("fonts_loading_timeout"); finish(); }, 2000);
+  // Loading before the first visible snapshot also makes recovery geometry
+  // use Manrope and the original icons, rather than freezing a fallback font.
+  Promise.allSettled([
+    document.fonts.load('600 18px Manrope'),
+    document.fonts.load('800 16px Manrope'),
+    document.fonts.load('400 12px "Font Awesome 6 Free"', "\uf005\uf007")
+  ]).then((results) => {
+    if (fontsReady) return;
+    if (results.some((item) => item.status === "rejected" || !item.value?.length)) warn("fonts_unavailable");
+    finish();
+  });
+}
 
 function hide() {
   overlay.hidden = true;
@@ -212,7 +235,7 @@ function createOutcome(outcome, index, animate) {
 
 function render() {
   clearTimeout(tickTimer);
-  if (!snapshot || !confirmed) { hide(); return; }
+  if (!snapshot || !confirmed || !fontsReady) { hide(); return; }
   const now = serverNow();
   const view = viewAt(snapshot, now);
   if (!view.visible) { hide(); return; }
@@ -523,5 +546,6 @@ setInterval(() => {
   }
 }, 5000);
 hide();
+prepareFonts();
 
 })();
