@@ -9,6 +9,7 @@
     "broadcaster_user_login": "losbroles",
     "broadcaster_user_name": "LosBroles",
     "title": "Quien gana la siguiente ronda?",
+    "started_at": "2026-05-20T10:00:00.000Z",
     "outcomes": [
       {
         "id": "outcome-1",
@@ -27,8 +28,6 @@
         "top_predictors": []
       }
     ],
-    "started_at": "2026-05-20T10:00:00.000Z",
     "locked_at": "2026-05-20T10:00:45.000Z"
   }
 }
-

@@ -9,6 +9,7 @@
     "broadcaster_user_login": "losbroles",
     "broadcaster_user_name": "LosBroles",
     "title": "Quien gana la siguiente ronda?",
+    "started_at": "2026-05-20T10:00:00.000Z",
     "outcomes": [
       {
         "id": "outcome-1",
@@ -21,7 +22,8 @@
             "user_id": "mock-predictor-001",
             "user_login": "demo_user_1",
             "user_name": "DemoUser1",
-            "channel_points_used": 700
+            "channel_points_used": 700,
+            "channel_points_won": null
           }
         ]
       },
@@ -36,13 +38,12 @@
             "user_id": "mock-predictor-002",
             "user_login": "demo_user_2",
             "user_name": "DemoUser2",
-            "channel_points_used": 500
+            "channel_points_used": 500,
+            "channel_points_won": null
           }
         ]
       }
     ],
-    "started_at": "2026-05-20T10:00:00.000Z",
     "locks_at": "2026-05-20T10:01:00.000Z"
   }
 }
-

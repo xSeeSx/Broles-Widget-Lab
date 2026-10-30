@@ -1,14 +1,13 @@
 {
   "listener": "kvstore:update",
   "event": {
-    "key": "demo:latest-event",
-    "value": {
-      "type": "manual-test",
-      "name": "DemoKV",
-      "count": 1
-    },
-    "oldValue": null,
-    "updatedAt": "2026-05-20T09:35:00.000Z"
+    "data": {
+      "key": "customWidget.demoLatestEvent",
+      "value": {
+        "type": "manual-test",
+        "name": "DemoKV",
+        "count": 1
+      }
+    }
   }
 }
-

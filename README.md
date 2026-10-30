@@ -61,6 +61,18 @@ El despliegue automatico se ejecuta con GitHub Actions desde `.github/workflows/
 - La consola en pantalla recibe logs del laboratorio y del widget aislado.
 - Las secciones del panel lateral son colapsables y el panel tiene scroll propio para mantener visible la zona de preview.
 
+## Fase 1: contrato y límites de emulación
+
+La revisión de fidelidad, cobertura, pruebas y escenarios de resultado atascado está en [docs/phase-1-fidelity.md](docs/phase-1-fidelity.md). Para comprobar contratos sin dependencias: `node tests/contracts.mjs`. GitHub Actions ejecuta la misma suite y pruebas de iframes reales en Chromium, con capturas de Demo, Marco, Predicción, almacenamiento y la regresión del resultado atascado. El contraste con StreamElements real y OBS es un paso independiente.
+
+## Vista para OBS real
+
+Abrir [Predicción en vista OBS](https://xseesx.github.io/Broles-Widget-Lab/?view=obs&widget=prediccion&controls=1) o copiar ese enlace en una fuente Navegador de prueba. El selector Widget genera el enlace correspondiente al widget seleccionado.
+
+En OBS usar **Interactuar** y **F2** para ocultar o mostrar los controles. La vista limpia tiene fondo transparente, ocupa el tamaño real de la fuente y muestra el overlay A/B seleccionado sin zoom CSS. Los eventos de Twitch y el Worker siguen siendo simulados; las animaciones se ejecutan en el CEF real de OBS. No se aplica un limitador de FPS ni se intenta imitar CEF en el navegador normal.
+
+El diagnóstico registra los eventos nativos de visibilidad/actividad y, mientras están abiertos los controles, intervalos de callbacks rAF. El informe Debug incorpora esos datos. La medición rAF no equivale a los FPS de salida de OBS. El procedimiento y los límites de reiniciar toda la fuente están en [la guía de fase 1](docs/phase-1-fidelity.md#prueba-dentro-de-obs-real).
+
 ## Mock de StreamElements
 
 `src/harness/se-mock.js` expone dentro del iframe:
@@ -76,6 +88,8 @@ El despliegue automatico se ejecuta con GitHub Actions desde `.github/workflows/
 - `window.emitSESessionUpdate({ session })`
 
 Los eventos se entregan con `window.addEventListener("onWidgetLoad", handler)`, `window.addEventListener("onEventReceived", handler)` y `window.addEventListener("onSessionUpdate", handler)`, usando `event.detail` como en widgets reales. El canal de prueba usa `username: "losbroles"` y `apiToken: "fake-api-token-never-real"`.
+
+`onWidgetLoad` se emite automáticamente en cada nueva fuente. `SE_API.store` vive fuera del iframe: es compartido por las fuentes de la cuenta simulada y persiste en el mismo navegador al recargar el laboratorio. Cada `set` sobrescribe el objeto completo y notifica a todas las fuentes vivas con `event.data.key = "customWidget.<key>"` y `event.data.value`. No se expone `delete` ni `clear`; el reset de predicciones no borra ese almacenamiento. No se garantiza un retorno Promise de `set`. Los errores del almacenamiento se registran, y un fallo de lectura rechaza el Promise.
 
 Los payloads de ejemplo estan en `src/fixtures/streamelements/`.
 
@@ -110,7 +124,7 @@ Fixtures manuales del chatbox: `src/fixtures/streamelements/chat/manual-tests.js
 
 ## Mock de Twitch EventSub
 
-`src/harness/twitch-eventsub-mock.js` emite predicciones con este formato:
+`src/harness/twitch-eventsub-mock.js` ofrece un adaptador de laboratorio. El formato siguiente corresponde al puente del Worker, no al sobre nativo de WebSocket de Twitch ni a un evento oficial de StreamElements:
 
 ```json
 {
@@ -153,7 +167,7 @@ El panel Worker WebSocket incluye:
 
 Cuando el widget activo es `Prediccion`, el laboratorio tambien reenvia los eventos del panel `Prediction Lab` por el WebSocket mock, porque ese widget real espera recibir predicciones como JSON de Worker y no escucha el evento interno `twitch:eventsub`.
 
-Los mensajes de prediccion enviados por el mock del Worker usan el mismo contrato de Twitch EventSub:
+Los mensajes de prediccion enviados por el mock del Worker mantienen el contrato adaptado del puente de Los Broles:
 
 ```json
 {
@@ -174,7 +188,9 @@ Los mensajes de prediccion enviados por el mock del Worker usan el mismo contrat
 - `Normal flow`: `Begin`, `Progress`, `Lock`, `End selected winner` y `Cancel`.
 - `Stress scenarios`: casos raros de directo como `Begin 1s stress`, `active_expired`, lock sin resolver, fade tras lock, end tardio y reset del estado del laboratorio.
 
-En `Twitch valid mode` aplica los limites oficiales usados por Twitch: 2-10 outcomes, titulo de prediccion de hasta 45 caracteres, titulo de outcome de hasta 25 caracteres y `prediction_window` entre 30 y 1800 segundos. En `Stress mode` se pueden generar duraciones cortas como 1s, `locks_at` en pasado, progress tras expiracion y eventos fuera de orden.
+En `Twitch valid mode` aplica los limites oficiales usados por Twitch: 2-10 outcomes, titulo de prediccion de hasta 45 caracteres, titulo de outcome de hasta 25 caracteres y `prediction_window` entre 30 y 1800 segundos. En este modo cada Begin crea un ID nuevo, se impide tener dos predicciones sin resolver y la ventana programa un lock automático; ese temporizador se cancela al resolver, reiniciar o sustituir la predicción. Begin no inventa contadores de votos que Twitch no envía.
+
+En `Stress mode` se pueden generar duraciones cortas como 1s, `locks_at` en pasado, progress tras expiracion y eventos fuera de orden.
 
 Para el widget real `Prediccion`, los eventos relevantes son los del Worker WebSocket. Los eventos directos del panel Twitch Predictions pueden reenviarse al Worker mock por compatibilidad, pero el widget importado escucha mensajes JSON por WebSocket, no el evento interno `twitch:eventsub`. Los botones de bajo nivel del panel `Worker WebSocket` quedan dentro de `Worker debug actions`; para el flujo habitual usa `Prediction Lab`.
 
@@ -191,7 +207,7 @@ La seccion `Overlay / OBS scenarios` permite ocultar una fuente, mostrarla, refr
 Modos de overlay oculto:
 
 - `Deliver while hidden`: solo oculta visualmente el iframe. El widget sigue cargado y recibe eventos.
-- `Skip delivery while hidden`: el iframe sigue cargado, pero el laboratorio excluye overlays ocultos al enviar eventos.
+- `Skip delivery while hidden`: inyección de fallos que excluye overlays ocultos del enrutador del Worker. No es un apagado real de OBS ni desactiva las notificaciones compartidas de SE store.
 - `Destroy iframe when hidden`: elimina el iframe y sus conexiones WebSocket. Al mostrarlo se recrea desde el widget cargado y depende del `Replay mode` configurado para recuperar o no estado.
 
 Cada overlay tiene su propio WebSocket mock y los broadcasts pueden llegar a ambas instancias cuando el destino es `Broadcast to all overlays`.
@@ -208,6 +224,8 @@ Para reproducir el bug de overlays:
 8. Usa `Hide source`, `Refresh source` o `Duplicate overlay instance`.
 9. Pulsa `End despues de lock tardio`.
 10. Observa si el widget queda en un estado visual colgado o desincronizado entre Overlay A y Overlay B.
+
+El escenario `Result + B disconnect + scene switch (stress)` explora el título/trofeos atascados: termina una predicción en A/B, corta el socket B durante el resultado y cambia de escena tras 12 segundos. El corte es una inyección explícita, no una causa atribuida automáticamente a OBS. Consultar la matriz completa en `docs/phase-1-fidelity.md`.
 
 ## Almacen de widgets
 

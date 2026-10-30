@@ -4,6 +4,10 @@ import {
   emitSEChatMessage
 } from "./harness/se-chat-mock.js";
 
+import { createSEStoreHost } from "./harness/se-store-host.js";
+import { predictionEvent } from "./harness/prediction-contract.js";
+import { initializeOBSView } from "./obs-view.js";
+
 const LAB_SOURCE = "losbroles-widget-lab";
 const WIDGET_SOURCE = "losbroles-widget-lab-widget";
 const REGISTRY_URL = new URL("../widgets/registry.json", import.meta.url);
@@ -170,6 +174,22 @@ const state = {
 };
 
 const elements = {};
+let seStoreHost;
+let predictionWindowTimer = null;
+let resultSceneScenarioId = 0;
+let obsView;
+
+function initializeSEStore() {
+  let storage;
+  try { storage = window.localStorage; }
+  catch (error) { writeLog("warn", "lab", "Browser storage unavailable", { error: error.message }); }
+  seStoreHost = createSEStoreHost({
+    getFrames: () => ["A", "B"].map(getOverlayFrame).filter(Boolean),
+    storage,
+    log: (level, message, data) => writeLog(level, "lab", message, data)
+  });
+  window.addEventListener("storage", (event) => seStoreHost.handleStorageEvent(event));
+}
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -177,6 +197,11 @@ async function init() {
   bindElements();
   setupCollapsibleSections();
   bindEvents();
+  initializeSEStore();
+  obsView = initializeOBSView({
+    onResize: applyResponsiveMode,
+    log: (level, message, data) => writeLog(level, "lab", message, data)
+  });
   writeLog("info", "lab", "Inicializando laboratorio");
 
   try {
@@ -303,6 +328,7 @@ function bindElements() {
   elements.overlayReloadBLockedButton = document.querySelector("#overlayReloadBLockedButton");
   elements.overlayEndHiddenButton = document.querySelector("#overlayEndHiddenButton");
   elements.overlayReconnectExpiredButton = document.querySelector("#overlayReconnectExpiredButton");
+  elements.overlayResultSceneButton = document.querySelector("#overlayResultSceneButton");
   elements.overlayStatus = document.querySelector("#overlayStatus");
   elements.fieldsList = document.querySelector("#fieldsList");
   elements.previewShell = document.querySelector("#previewShell");
@@ -479,6 +505,7 @@ function bindEvents() {
   elements.overlayReloadBLockedButton.addEventListener("click", runReloadOverlayBWhileLockedScenario);
   elements.overlayEndHiddenButton.addEventListener("click", runEndWhileHiddenScenario);
   elements.overlayReconnectExpiredButton.addEventListener("click", runReconnectWhileActiveExpiredScenario);
+  elements.overlayResultSceneButton.addEventListener("click", runResultSceneSwitchScenario);
 
   elements.clearLogsButton.addEventListener("click", clearLogs);
   attachOverlayFrameLoadHandler(elements.frame, "A");
@@ -696,7 +723,9 @@ async function loadRegistry() {
   }
 
   renderWidgetOptions();
-  await loadWidget(state.widgets[0].id);
+  const preferredId = obsView?.preferredWidgetId;
+  const firstWidget = state.widgets.find((widget) => widget.id === preferredId) || state.widgets[0];
+  await loadWidget(firstWidget.id);
 }
 
 async function validateWidgets() {
@@ -839,6 +868,7 @@ function clearImportPreviewOption() {
 }
 
 async function previewImportedWidget() {
+  resultSceneScenarioId += 1;
   let draft;
 
   try {
@@ -1108,6 +1138,7 @@ function setImportStatus(message, level = "info") {
 }
 
 async function loadWidget(widgetId) {
+  resultSceneScenarioId += 1;
   const widget = state.widgets.find((item) => item.id === widgetId);
 
   if (!widget) {
@@ -1164,6 +1195,7 @@ async function loadWidget(widgetId) {
 }
 
 function renderWidgetMeta(widget) {
+  obsView?.updateLink(widget.id);
   elements.widgetMeta.replaceChildren();
 
   const title = document.createElement("strong");
@@ -1355,6 +1387,7 @@ function buildDebugReport() {
     page: window.location.href,
     selectedWidget: state.selectedWidget,
     responsive: state.responsive,
+    renderEnvironment: obsView?.report() || null,
     validationResults: state.validationResults,
     logs: state.debugEntries,
     workerConnections: Array.from(elements.workerConnectionList.querySelectorAll(".worker-connection-entry")).map((item) => item.textContent)
@@ -1362,6 +1395,10 @@ function buildDebugReport() {
 }
 
 function applyResponsiveMode() {
+  if (obsView?.enabled) {
+    applyPreviewDimensions(window.innerWidth, window.innerHeight, 1);
+    return;
+  }
   const [width, height] = state.responsive.preset.split("x").map((value) => Number.parseInt(value, 10));
   const zoom = Number(state.responsive.zoom) || 1;
 
@@ -1687,18 +1724,23 @@ function clearOverlayConnections(overlayId, reason) {
 
 function runReloadOverlayBWhileLockedScenario() {
   const previousTarget = state.overlays.deliveryTarget;
-  state.overlays.deliveryTarget = "A";
+  setOverlayDeliveryTarget("A");
   beginNormalPrediction();
   lockPredictionWithoutEnd();
+  const predictionId = state.prediction.id;
+  const selectedWidget = state.selectedWidget;
   writeLog("info", "lab", "Escenario: Overlay B se recargara tras 16s mientras A esta locked", {
     step: "A begin + A lock"
   });
   window.setTimeout(() => {
+    if (state.prediction.id !== predictionId || state.selectedWidget !== selectedWidget ||
+        !["locked", "locked_waiting_resolution"].includes(state.prediction.currentPredictionStatus)) {
+      writeLog("info", "lab", "Escenario de recarga B cancelado: el widget o la predicción han cambiado");
+      return;
+    }
     duplicateOverlayInstance();
     refreshOverlay("B");
-    state.overlays.deliveryTarget = previousTarget;
-    elements.overlayDeliveryTarget.value = previousTarget;
-    renderOverlayStatus();
+    if (state.overlays.deliveryTarget === "A") setOverlayDeliveryTarget(previousTarget);
     writeLog("info", "lab", "Escenario: Overlay B recreado; no se ha enviado end todavia", {
       currentPredictionStatus: state.prediction.currentPredictionStatus,
       replayMode: state.worker.replayMode
@@ -1733,6 +1775,55 @@ function runReconnectWhileActiveExpiredScenario() {
       currentPredictionStatus: state.prediction.currentPredictionStatus
     });
   }, 500);
+}
+
+async function runResultSceneSwitchScenario() {
+  const token = ++resultSceneScenarioId;
+  const widgetId = state.selectedWidget?.id;
+  resetPredictionLabState();
+  state.overlays.hiddenDeliveryMode = "deliver";
+  setOverlayDeliveryTarget("all");
+  duplicateOverlayInstance();
+  setActiveOverlay("A");
+  const isCurrent = () => token === resultSceneScenarioId && state.selectedWidget?.id === widgetId;
+  const pause = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  // Wait for both actual mock sockets, not a fixed iframe loading delay.
+  const deadline = Date.now() + 5000;
+  while (isCurrent() && (countOpenMockConnections("A") === 0 || countOpenMockConnections("B") === 0)) {
+    if (Date.now() >= deadline) {
+      writeLog("warn", "lab", "Result scene scenario aborted: both overlays must have open mocked WebSockets.");
+      return;
+    }
+    await pause(50);
+  }
+  if (!isCurrent()) return;
+  beginNormalPrediction();
+  const predictionId = state.prediction.id;
+  const samePrediction = () => isCurrent() && state.prediction.id === predictionId && state.prediction.startedAt !== null;
+  applyVotePattern("random");
+  sendPredictionProgressWithCurrentVotes();
+  lockPrediction();
+  await pause(1000);
+  if (!samePrediction()) return;
+  endPredictionByOutcomeId(state.prediction.outcomes[0]?.id, "resolved");
+  await pause(750);
+  if (!samePrediction()) return;
+  // Explicit fault injection: closing WS may cancel the legacy renderer's cleanup.
+  // This is a candidate failure mechanism, not a claim about OBS visibility.
+  closeOverlayWebSockets("B", "stress: disconnect during result animation");
+  hideOverlay("B");
+  writeLog("info", "lab", "Result scene scenario: B disconnected during result; waiting 12s before scene switch.", {
+    predictionId, endedAt: state.prediction.endedAt, faultInjection: true, replayMode: state.worker.replayMode
+  });
+  await pause(12000);
+  if (!samePrediction()) return;
+  hideOverlay("A");
+  showOverlay("B");
+  setActiveOverlay("B");
+  writeLog("info", "lab", "Result scene scenario complete. Inspect B for a stale title/trophy after result expiry.", {
+    predictionId, endedAt: state.prediction.endedAt, expected: "Result must not remain stuck or restart its display lifetime.",
+    faultInjection: "B socket close during result", replayMode: state.worker.replayMode
+  });
 }
 
 function createDefaultPredictionState() {
@@ -1770,12 +1861,22 @@ function createPredictionOutcome(number) {
   };
 }
 
+function isPredictionSetupLocked() {
+  return state.prediction.mode === "twitch" &&
+    !["idle", "resolved", "canceled"].includes(state.prediction.currentPredictionStatus);
+}
+
 function renderPredictionControls() {
   elements.predictionTwitchValidMode.checked = state.prediction.mode === "twitch";
   elements.predictionStressMode.checked = state.prediction.mode === "stress";
   elements.predictionTitle.value = state.prediction.title;
   elements.predictionDuration.value = String(state.prediction.durationSeconds);
   elements.predictionOutcomeCount.value = String(state.prediction.outcomes.length);
+  const setupLocked = isPredictionSetupLocked();
+  for (const input of [elements.predictionTitle, elements.predictionDuration, elements.predictionOutcomeCount, ...elements.predictionCountButtons]) {
+    input.disabled = setupLocked;
+  }
+  elements.predictionApplyVotePatternButton.disabled = setupLocked && state.prediction.currentPredictionStage === "lock";
   renderPredictionWinningOptions();
   renderPredictionOutcomeRows();
   renderPredictionValidation();
@@ -1831,6 +1932,7 @@ function createPredictionInput(index, field, label, value, type) {
   input.value = String(value);
   input.dataset.outcomeIndex = String(index);
   input.dataset.outcomeField = field;
+  input.disabled = isPredictionSetupLocked() && (field === "title" || state.prediction.currentPredictionStage === "lock");
 
   if (type === "number") {
     input.min = "0";
@@ -1842,12 +1944,14 @@ function createPredictionInput(index, field, label, value, type) {
 }
 
 function setPredictionMode(mode) {
+  clearPredictionWindow();
   state.prediction.mode = mode === "stress" ? "stress" : "twitch";
 
   if (state.prediction.mode === "twitch") {
     applyTwitchPredictionLimits();
   }
 
+  schedulePredictionWindow();
   renderPredictionControls();
   writeLog("info", "lab", `Prediction mode: ${state.prediction.mode}`, {
     limits: PREDICTION_LIMITS
@@ -1934,6 +2038,10 @@ function handlePredictionOutcomeInput(event) {
 }
 
 function setPredictionOutcomeCount(value) {
+  if (isPredictionSetupLocked()) {
+    writeLog("warn", "lab", "Prediction setup is immutable after Begin. Use Stress mode to change it.");
+    return;
+  }
   syncPredictionFromControls();
 
   const nextCount = clampInteger(value, PREDICTION_LIMITS.outcomesMin, PREDICTION_LIMITS.outcomesMax);
@@ -1943,8 +2051,11 @@ function setPredictionOutcomeCount(value) {
 }
 
 function syncPredictionFromControls() {
-  state.prediction.title = elements.predictionTitle.value.trim() || "Prediccion de prueba";
-  state.prediction.durationSeconds = clampInteger(elements.predictionDuration.value, 1, 86400);
+  const setupLocked = isPredictionSetupLocked();
+  if (!setupLocked) {
+    state.prediction.title = elements.predictionTitle.value.trim() || "Prediccion de prueba";
+    state.prediction.durationSeconds = clampInteger(elements.predictionDuration.value, 1, 86400);
+  }
   state.prediction.winningOutcomeId = elements.predictionWinningOutcome.value || null;
 
   for (const input of elements.predictionOutcomes.querySelectorAll("[data-outcome-field]")) {
@@ -1955,6 +2066,8 @@ function syncPredictionFromControls() {
       continue;
     }
 
+    if (field === "title" && setupLocked) continue;
+    if (field !== "title" && setupLocked && state.prediction.currentPredictionStage === "lock") continue;
     if (field === "title") {
       state.prediction.outcomes[index].title = input.value.trim() || `Opcion ${index + 1}`;
     } else {
@@ -1962,7 +2075,7 @@ function syncPredictionFromControls() {
     }
   }
 
-  resizePredictionOutcomes(clampInteger(elements.predictionOutcomeCount.value, PREDICTION_LIMITS.outcomesMin, PREDICTION_LIMITS.outcomesMax));
+  if (!setupLocked) resizePredictionOutcomes(clampInteger(elements.predictionOutcomeCount.value, PREDICTION_LIMITS.outcomesMin, PREDICTION_LIMITS.outcomesMax));
 
   if (state.prediction.mode === "twitch") {
     applyTwitchPredictionLimits();
@@ -1987,14 +2100,30 @@ function createPrediction() {
 
 function beginNormalPrediction() {
   syncPredictionFromControls();
+  if (state.prediction.mode === "twitch" && !["idle", "resolved", "canceled"].includes(state.prediction.currentPredictionStatus)) {
+    writeLog("warn", "lab", "Twitch allows only one unresolved prediction. Resolve or cancel it before Begin.");
+    return;
+  }
   startPredictionWindow();
+  if (state.prediction.mode === "twitch") {
+    for (const outcome of state.prediction.outcomes) {
+      outcome.users = 0;
+      outcome.channelPoints = 0;
+    }
+  }
   setPredictionRuntimeStatus("active", "begin");
   state.prediction.lockedAt = null;
   state.prediction.endedAt = null;
+  renderPredictionControls();
   emitTwitchPredictionPayload(buildPredictionPayload("begin"));
+  schedulePredictionWindow();
 }
 
 function beginTenOutcomePrediction() {
+  if (isPredictionSetupLocked()) {
+    writeLog("warn", "lab", "Prediction setup is immutable after Begin. Use Stress mode to change it.");
+    return;
+  }
   syncPredictionFromControls();
   resizePredictionOutcomes(PREDICTION_LIMITS.outcomesMax);
   state.prediction.outcomes.forEach((outcome, index) => {
@@ -2007,12 +2136,14 @@ function beginTenOutcomePrediction() {
 }
 
 function beginOneSecondStressPrediction() {
+  clearPredictionWindow();
   if (!ensureStressMode("Begin 1s stress")) {
     return;
   }
 
   syncPredictionFromControls();
   const startedAt = new Date();
+  state.prediction.id = "prediction-" + crypto.randomUUID();
   state.prediction.durationSeconds = 1;
   state.prediction.startedAt = startedAt.toISOString();
   state.prediction.locksAt = new Date(startedAt.getTime() + 1000).toISOString();
@@ -2045,7 +2176,7 @@ function progressExpiredPrediction() {
   }
 
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
   state.prediction.locksAt = new Date(Date.now() - 1000).toISOString();
   setPredictionRuntimeStatus("active_expired", "progress");
   applyVotePattern("random");
@@ -2055,7 +2186,8 @@ function progressExpiredPrediction() {
 
 function sendPredictionProgressWithCurrentVotes() {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
+  if (!allowProgress()) return;
   setPredictionRuntimeStatus(getPredictionExpiredStatus(), "progress");
   renderPredictionControls();
   emitTwitchPredictionPayload(buildPredictionPayload("progress"));
@@ -2063,7 +2195,8 @@ function sendPredictionProgressWithCurrentVotes() {
 
 function addVotesToOutcome(index) {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
+  if (!allowProgress()) return;
   addPredictionVote(index, 1, 500);
   setPredictionRuntimeStatus(getPredictionExpiredStatus(), "progress");
   renderPredictionControls();
@@ -2072,7 +2205,8 @@ function addVotesToOutcome(index) {
 
 function addRandomPredictionVotes() {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
+  if (!allowProgress()) return;
 
   for (let index = 0; index < state.prediction.outcomes.length; index += 1) {
     const users = Math.floor(Math.random() * 4) + 1;
@@ -2099,15 +2233,26 @@ function addPredictionVote(index, users, points) {
 
 function lockPrediction() {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
+  if (state.prediction.mode === "twitch" && !["begin", "progress"].includes(state.prediction.currentPredictionStage)) {
+    writeLog("warn", "lab", "Prediction is already locked.");
+    return;
+  }
+  clearPredictionWindow();
   setPredictionRuntimeStatus("locked", "lock");
   state.prediction.lockedAt = new Date().toISOString();
+  renderPredictionControls();
   emitTwitchPredictionPayload(buildPredictionPayload("lock"));
 }
 
 function lockPredictionWithoutEnd() {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
+  if (state.prediction.mode === "twitch" && !["begin", "progress"].includes(state.prediction.currentPredictionStage)) {
+    writeLog("warn", "lab", "Prediction is already locked.");
+    return;
+  }
+  clearPredictionWindow();
   setPredictionRuntimeStatus("locked_waiting_resolution", "lock");
   state.prediction.lockedAt = new Date().toISOString();
   renderPredictionControls();
@@ -2144,14 +2289,14 @@ function endAfterLateLock() {
 
 function endWithoutPriorLock() {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
   setPredictionRuntimeStatus(getPredictionExpiredStatus(), "progress");
   endPredictionByOutcomeId(state.prediction.winningOutcomeId || state.prediction.outcomes[0]?.id || null, "resolved");
 }
 
 function endPrediction(winnerIndex) {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
 
   const winner = state.prediction.outcomes[winnerIndex];
 
@@ -2165,11 +2310,13 @@ function endPrediction(winnerIndex) {
 
 function resolvePredictionWithSelectedWinner() {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
   endPredictionByOutcomeId(state.prediction.winningOutcomeId || state.prediction.outcomes[0]?.id || null, "resolved");
 }
 
 function endPredictionByOutcomeId(winningOutcomeId, status) {
+  if (state.prediction.mode === "twitch" && !ensurePredictionStarted()) return;
+  clearPredictionWindow();
   if (status === "resolved" && !winningOutcomeId) {
     writeLog("warn", "lab", "No hay winning_outcome_id para resolver");
     return;
@@ -2185,11 +2332,12 @@ function endPredictionByOutcomeId(winningOutcomeId, status) {
 
 function cancelPrediction() {
   syncPredictionFromControls();
-  ensurePredictionStarted();
+  if (!ensurePredictionStarted()) return;
   endPredictionByOutcomeId(null, "canceled");
 }
 
 function resetPrediction() {
+  clearPredictionWindow();
   state.prediction = createDefaultPredictionState();
   renderPredictionControls();
   writeLog("info", "lab", "Evento emitido: twitch.prediction.reset", {
@@ -2200,6 +2348,7 @@ function resetPrediction() {
 }
 
 function resetPredictionLabState() {
+  clearPredictionWindow();
   const keepMode = state.prediction.mode;
   state.prediction.currentPrediction = null;
   state.prediction.predictionHistory = [];
@@ -2224,12 +2373,53 @@ function resetPredictionLabState() {
 
 function ensurePredictionStarted() {
   if (!state.prediction.startedAt || ["idle", "resolved", "canceled"].includes(state.prediction.status)) {
+    if (state.prediction.mode === "twitch") {
+      writeLog("warn", "lab", "Begin a prediction first. Out-of-order injection belongs in Stress mode.");
+      return false;
+    }
     startPredictionWindow();
     setPredictionRuntimeStatus("active", "begin");
   }
+  return true;
+}
+
+function clearPredictionWindow() {
+  window.clearTimeout(predictionWindowTimer);
+  predictionWindowTimer = null;
+}
+
+function schedulePredictionWindow() {
+  clearPredictionWindow();
+  if (state.prediction.mode !== "twitch" || state.prediction.currentPredictionStatus !== "active") return;
+  const id = state.prediction.id;
+  const locksAt = state.prediction.locksAt;
+  predictionWindowTimer = window.setTimeout(() => {
+    if (state.prediction.id !== id || state.prediction.mode !== "twitch" ||
+        state.prediction.currentPredictionStatus !== "active") return;
+    // Preserve the server's scheduled lock time even if this task runs late.
+    state.prediction.lockedAt = locksAt;
+    setPredictionRuntimeStatus("locked_waiting_resolution", "lock");
+    renderPredictionControls();
+    emitTwitchPredictionPayload(buildPredictionPayload("lock"));
+  }, Math.max(0, Date.parse(locksAt) - Date.now()));
+}
+
+function allowProgress() {
+  if (state.prediction.mode === "twitch" && state.prediction.currentPredictionStage !== "begin" &&
+      state.prediction.currentPredictionStage !== "progress") {
+    writeLog("warn", "lab", "A locked prediction no longer accepts progress. Use Stress mode for late events.");
+    return false;
+  }
+  if (state.prediction.mode === "twitch" && Date.parse(state.prediction.locksAt) <= Date.now()) {
+    writeLog("warn", "lab", "Prediction window expired; waiting for automatic lock.");
+    return false;
+  }
+  return true;
 }
 
 function startPredictionWindow() {
+  clearPredictionWindow();
+  state.prediction.id = "prediction-" + crypto.randomUUID();
   const startedAt = new Date();
   state.prediction.startedAt = startedAt.toISOString();
   state.prediction.locksAt = new Date(startedAt.getTime() + state.prediction.durationSeconds * 1000).toISOString();
@@ -2278,6 +2468,10 @@ function applySelectedVotePattern() {
 }
 
 function applyVotePattern(pattern) {
+  if (isPredictionSetupLocked() && state.prediction.currentPredictionStage === "lock") {
+    writeLog("warn", "lab", "Votes are frozen after lock in Twitch valid mode.");
+    return;
+  }
   syncPredictionFromControls();
 
   if (pattern === "ten-uneven") {
@@ -2381,16 +2575,16 @@ function buildPredictionPayload(stage) {
       ...fixture.subscription,
       type
     },
-    event
+    event: state.prediction.mode === "stress" ? event : predictionEvent(stage, event)
   };
 }
 
 function buildPredictionOutcomes(includeWinnings) {
   return state.prediction.outcomes.map((outcome, index) => {
     const isWinner = state.prediction.winningOutcomeId === outcome.id;
-    const color = state.prediction.outcomes.length > 2 && state.prediction.mode !== "stress"
-      ? "blue"
-      : (outcome.color || (index % 2 === 0 ? "blue" : "pink"));
+    const color = state.prediction.mode === "stress"
+      ? (outcome.color || (index % 2 === 0 ? "blue" : "pink"))
+      : (state.prediction.outcomes.length === 2 && index === 1 ? "pink" : "blue");
 
     return {
       id: outcome.id,
@@ -2413,7 +2607,8 @@ function buildTopPredictors(outcome, index, includeWinnings) {
     user_id: `mock-predictor-${String(index + 1).padStart(3, "0")}`,
     user_login: `prediction_user_${index + 1}`,
     user_name: `PredictionUser${index + 1}`,
-    channel_points_used: used
+    channel_points_used: used,
+    channel_points_won: null
   };
 
   if (includeWinnings) {
@@ -2664,7 +2859,7 @@ function sendWorkerPrediction(stage) {
     state.prediction.lockedAt = null;
     state.prediction.endedAt = null;
   } else {
-    ensurePredictionStarted();
+    if (!ensurePredictionStarted()) return;
   }
 
   if (stage === "lock") {
@@ -2698,6 +2893,7 @@ function postWorkerBroadcast(type, payload, label, options = {}) {
       activeWidget: state.selectedWidget?.id || null,
       overlayTarget: target,
       skippedHiddenOverlays: targetFrameResult.skippedHidden,
+      skippedUnavailableOverlays: targetFrameResult.skippedUnavailable,
       workerUrl: state.worker.workerUrl,
       interceptWebSocket: state.worker.interceptWebSocket,
       expectedIntercept: "Worker mock intercepts WebSocket URLs containing /ws or the configured Worker URL.",
@@ -2708,7 +2904,8 @@ function postWorkerBroadcast(type, payload, label, options = {}) {
   postToWidgetFrames({
     source: LAB_SOURCE,
     type,
-    payload
+    payload,
+    recordPrediction: false
   }, { target });
 
   writeLog("info", "lab", `${label} broadcast solicitado`, {
@@ -2716,6 +2913,7 @@ function postWorkerBroadcast(type, payload, label, options = {}) {
     channel: "Worker WebSocket",
     overlayTarget: target,
     skippedHiddenOverlays: targetFrameResult.skippedHidden,
+    skippedUnavailableOverlays: targetFrameResult.skippedUnavailable,
     summary: summarizeWorkerPayload(payload),
     openMockWebSockets: openConnectionCount,
     currentPredictionStatus: state.prediction.currentPredictionStatus,
@@ -2739,12 +2937,14 @@ function getTargetFrameResult(target = "all") {
   const overlayIds = getTargetOverlayIds(target);
   const frames = [];
   const skippedHidden = [];
+  const skippedUnavailable = [];
 
   for (const overlayId of overlayIds) {
     const instance = state.overlays.instances[overlayId];
     const frame = getOverlayFrame(overlayId);
 
     if (!frame) {
+      skippedUnavailable.push(overlayId);
       continue;
     }
 
@@ -2756,7 +2956,7 @@ function getTargetFrameResult(target = "all") {
     frames.push(frame);
   }
 
-  return { frames, skippedHidden };
+  return { frames, skippedHidden, skippedUnavailable };
 }
 
 function getTargetOverlayIds(target = "all", options = {}) {
@@ -2990,6 +3190,8 @@ function buildIframeDocument({ manifest, html, css, script, fieldsSchema, fieldD
     }
   };
 
+  window.__LAB_SE_INITIAL_LOAD__ = ${escapeScript(JSON.stringify(state.seFixtures.widgetLoad || {}))};
+  window.__LAB_SE_EDITOR_MODE__ = ${JSON.stringify(!obsView?.enabled)};
   window.__LAB_FIELDS_SCHEMA__ = ${escapeScript(JSON.stringify(fieldsSchema))};
   window.__LAB_FIELDS__ = ${escapeScript(JSON.stringify(fieldData))};
   window.__LAB_WIDGET_MANIFEST__ = ${escapeScript(JSON.stringify(manifest))};
@@ -3073,7 +3275,11 @@ function buildIframeDocument({ manifest, html, css, script, fieldsSchema, fieldD
 }
 
 function emitSEPayload(actionKey, payload) {
-  const frameWindow = elements.frame.contentWindow;
+  if (actionKey === "kvstoreUpdate" && seStoreHost?.injectKVUpdate(payload)) {
+    writeLog("info", "lab", "kvstore:update persisted and broadcast to account widgets", payload);
+    return;
+  }
+  const frameWindow = getOverlayFrame(state.overlays.activeId)?.contentWindow;
   const action = SE_ACTIONS[actionKey];
 
   if (!frameWindow) {
@@ -3092,6 +3298,8 @@ function emitSEPayload(actionKey, payload) {
 }
 
 function handleWidgetMessage(event) {
+  if (seStoreHost?.handle(event)) return;
+  if (!["A", "B"].some((id) => getOverlayFrame(id)?.contentWindow === event.source)) return;
   const data = event.data;
 
   if (!data || data.source !== WIDGET_SOURCE) {

@@ -1,7 +1,17 @@
 (function () {
   const LAB_SOURCE = "losbroles-widget-lab";
   const FAKE_API_TOKEN = "fake-api-token-never-real";
-  const store = new Map();
+  const pendingReads = new Map();
+  let nextStoreRequestId = 0;
+
+  function storeRequest(action, key, value) {
+    const requestId = window.__LAB_OVERLAY_ID__ + "-store-" + (++nextStoreRequestId);
+    parent.postMessage({
+      source: "losbroles-widget-lab-widget", type: "SE_STORE_REQUEST",
+      requestId, action, key, value
+    }, "*");
+    return requestId;
+  }
   const counters = new Map([
     ["follower-total", 1284],
     ["subscriber-total", 76],
@@ -48,18 +58,14 @@
     return JSON.parse(JSON.stringify(value));
   }
 
-  function sanitize(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+  function sanitize({ message } = {}) {
+    // Shape matches SE_API; account-specific profanity settings are not simulated.
+    return Promise.resolve({ skip: false, result: { message: String(message ?? "") } });
   }
 
   function cheerFilter(message) {
-    const filtered = String(message ?? "").replace(/\b(cheer|bits)(\d+)\b/gi, "$1 $2");
-    return Promise.resolve(sanitize(filtered));
+    return Promise.resolve(String(message ?? "")
+      .replace(/\b(?:cheer|bits|shamrock|cheerwhal)\d+\b/gi, "").replace(/\s+/g, " ").trim());
   }
 
   function dispatch(eventName, detail) {
@@ -138,22 +144,6 @@
     recentsState = [recent, ...recentsState].slice(0, 20);
   }
 
-  function applyKVStoreUpdate(payload) {
-    if (payload.listener !== "kvstore:update") {
-      return;
-    }
-
-    const event = payload.event || {};
-    const key = event.key || event.data?.key;
-    const value = Object.prototype.hasOwnProperty.call(event, "value")
-      ? event.value
-      : event.data?.value;
-
-    if (key) {
-      store.set(key, clone(value));
-    }
-  }
-
   function emitSEWidgetLoad(payload = {}) {
     const normalized = normalizeWidgetLoadPayload(payload);
     dispatch("onWidgetLoad", normalized);
@@ -162,7 +152,6 @@
 
   function emitSEEventReceived(payload = {}) {
     const normalized = normalizeEventReceivedPayload(payload);
-    applyKVStoreUpdate(normalized);
     rememberRecent(normalized);
     dispatch("onEventReceived", normalized);
     return normalized;
@@ -191,40 +180,34 @@
   window.SE_API = {
     store: {
       get(key) {
-        return Promise.resolve(clone(store.get(key)));
+        return new Promise((resolve, reject) => {
+          const requestId = storeRequest("get", key);
+          const timer = window.setTimeout(() => {
+            pendingReads.delete(requestId);
+            reject(new Error("SE store mock host did not respond"));
+          }, 10000);
+          pendingReads.set(requestId, { resolve, reject, timer });
+        });
       },
       set(key, value) {
-        store.set(key, clone(value));
-        return Promise.resolve(clone(value));
-      },
-      delete(key) {
-        const deleted = store.delete(key);
-        return Promise.resolve(deleted);
-      },
-      clear() {
-        store.clear();
-        return Promise.resolve();
+        // No documented Promise/acknowledgment contract for store.set in SE.
+        storeRequest("set", key, clone(value));
       }
     },
     counters: {
       get(counter) {
-        return Promise.resolve(counters.get(counter) ?? 0);
-      },
-      set(counter, value) {
-        counters.set(counter, Number(value) || 0);
-        return Promise.resolve(counters.get(counter));
-      },
-      increment(counter, amount = 1) {
-        const nextValue = (counters.get(counter) ?? 0) + Number(amount || 0);
-        counters.set(counter, nextValue);
-        return Promise.resolve(nextValue);
+        return Promise.resolve({ id: counter, count: counters.get(counter) ?? 0 });
       }
+
+    },
+    getOverlayStatus() {
+      return Promise.resolve({ isEditorMode: window.__LAB_SE_EDITOR_MODE__ !== false, muted: false });
     },
     sanitize,
     cheerFilter,
     setField,
     resumeQueue() {
-      return Promise.resolve();
+      return undefined;
     }
   };
 
@@ -241,16 +224,26 @@
     setField,
     get fieldData() {
       return window.__LAB_FIELDS__ || {};
-    },
-    get store() {
-      return store;
     }
   };
 
   window.addEventListener("message", (event) => {
     const data = event.data;
 
-    if (!data || data.source !== LAB_SOURCE) {
+    if (event.source !== parent || !data || data.source !== LAB_SOURCE) {
+      return;
+    }
+
+    if (data.type === "SE_STORE_RESPONSE") {
+      const pending = pendingReads.get(data.requestId);
+      if (pending) {
+        window.clearTimeout(pending.timer);
+        pendingReads.delete(data.requestId);
+        if (data.error) pending.reject(new Error(data.error));
+        else pending.resolve(clone(data.value));
+      } else if (data.error) {
+        log("error", "SE store write failed", { error: data.error });
+      }
       return;
     }
 
@@ -273,6 +266,13 @@
       log("warn", `StreamElements mock ignored action: ${data.action}`, data.payload);
     }
   });
+
+  window.addEventListener("load", () => {
+    emitSEWidgetLoad({
+      ...(window.__LAB_SE_INITIAL_LOAD__ || {}),
+      fieldData: window.__LAB_FIELDS__ || {}
+    });
+  }, { once: true });
 
   log("info", "StreamElements mock ready");
 })();

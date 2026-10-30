@@ -79,6 +79,13 @@
     };
   }
 
+  // Match Twitch's begin shape rather than assuming vote fields are present.
+  for (const outcome of predictionFixtures[PREDICTION_TYPES.begin].event.outcomes) {
+    delete outcome.users;
+    delete outcome.channel_points;
+    delete outcome.top_predictors;
+  }
+
   function getHandlers(type) {
     if (!handlers.has(type)) {
       handlers.set(type, new Set());
@@ -89,23 +96,8 @@
 
   function normalizePayload(typeOrPayload, event) {
     if (typeof typeOrPayload === "object" && typeOrPayload) {
-      const type = typeOrPayload.type || typeOrPayload.subscription?.type || event?.type;
-      const fixture = predictionFixtures[type] || { type, subscription: { type }, event: {} };
-
-      return {
-        ...clone(fixture),
-        ...clone(typeOrPayload),
-        type,
-        subscription: {
-          ...clone(fixture.subscription),
-          ...clone(typeOrPayload.subscription || {}),
-          type
-        },
-        event: {
-          ...clone(fixture.event),
-          ...clone(typeOrPayload.event || {})
-        }
-      };
+      // Explicit payloads are wire data. Never repair malformed/stress events with fixtures.
+      return clone(typeOrPayload);
     }
 
     const type = typeOrPayload;
@@ -195,7 +187,7 @@
   window.addEventListener("message", (event) => {
     const data = event.data;
 
-    if (!data || data.source !== LAB_SOURCE || data.type !== "TWITCH_EVENTSUB_EMIT") {
+    if (event.source !== parent || !data || data.source !== LAB_SOURCE || data.type !== "TWITCH_EVENTSUB_EMIT") {
       return;
     }
 
