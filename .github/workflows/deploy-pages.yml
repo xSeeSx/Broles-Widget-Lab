@@ -39,3 +39,21 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+      - name: Prepare published-site verification
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: npm install --no-save --package-lock=false playwright@1.64.1
+      - run: npx playwright install --with-deps chromium
+
+      - name: Verify published predictions
+        env:
+          LAB_BASE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: node tests/predictions-v2-published.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-prediction-check
+          path: test-results/published/

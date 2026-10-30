@@ -34,6 +34,7 @@ jobs:
           node tests/predictions-v2-visual.mjs
           node tests/predictions-v2-parity.mjs
           node tests/predictions-v2-browser.mjs
+          node tests/predictions-v2-published.mjs
           node tests/predictions-v2-stress.mjs
       - uses: actions/upload-artifact@v4
         if: always()
