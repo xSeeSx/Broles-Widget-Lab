@@ -32,6 +32,7 @@ jobs:
           trap 'kill "$server_pid"' EXIT
           node tests/browser-smoke.mjs
           node tests/predictions-v2-visual.mjs
+          node tests/predictions-v2-parity.mjs
           node tests/predictions-v2-browser.mjs
           node tests/predictions-v2-stress.mjs
       - uses: actions/upload-artifact@v4

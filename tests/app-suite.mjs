@@ -52,6 +52,18 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     assert(emitted.length === count, "no default winner or invalid end");
     assert(scheduled.size === timers, "invalid resolve cannot cancel automatic lock");
   });
+  test("lock and result conserve sent totals instead of silently applying an editor draft", () => {
+    const prediction = app.state.prediction;
+    prediction.currentPrediction = { id: prediction.id, outcomes: prediction.outcomes.map((outcome, index) => ({ id: outcome.id, users: 4 + index, channel_points: 800 + index * 100 })) };
+    prediction.outcomes.forEach((outcome) => { outcome.users = 1; outcome.channelPoints = 1; });
+    app.lockPrediction();
+    assert(emitted.at(-1).event.outcomes[0].users === 4, "lock reports sent users");
+    assert(emitted.at(-1).event.outcomes[0].channel_points === 800, "lock reports sent points");
+    prediction.outcomes[0].channelPoints = 1;
+    app.endPredictionByOutcomeId("outcome-1", "resolved");
+    assert(emitted.at(-1).event.outcomes[0].channel_points === 800, "result cannot publish a stale draft");
+    app.beginNormalPrediction();
+  });
   test("generated prediction uses the broadcaster configured in the real widget", () => {
     const payload = app.buildPredictionPayload("begin");
     assert(payload.event.broadcaster_user_id === "133649243", "generator channel must match v2 protocol");

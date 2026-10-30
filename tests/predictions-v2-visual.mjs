@@ -69,8 +69,9 @@ try {
   await reference.locator(".progress-bar-users-text").first().evaluate((node) => { node.lastChild.textContent = " …"; });
   const originalUnknownStyle = await reference.locator("body").evaluate(styles, selectors);
   await reference.locator(".progress-bar-users-text").first().evaluate((node) => { node.lastChild.textContent = " 0"; });
+  const beforeZeroRevision = Number(await root().getAttribute("data-revision"));
   await page.locator("#predictionNormalProgressButton").click();
-  await check(async () => (await geometry()).children.every((item) => item.users === "0"), "initial zero progress is received");
+  await check(async () => Number(await root().getAttribute("data-revision")) > beforeZeroRevision && (await geometry()).children.every((item) => item.users === "0"), "initial zero progress is received");
   const restoredStyle = await frame().locator("body").evaluate(styles, selectors);
   await writeFile("test-results/v2-original-style-comparison.json", JSON.stringify({ originalStyle, originalUnknownStyle, initialRestoredStyle, restoredStyle }, null, 2));
   await reference.screenshot({ path: "test-results/prediction-original-reference.png" });
@@ -132,6 +133,7 @@ try {
   assert.equal(Number(await root().getAttribute("data-hide-at")), deadline);
   await check(async () => await root().evaluate((node) => getComputedStyle(node).animationName === "fadeOut"), "exit animation starts", 4000);
   await page.waitForTimeout(300);
+  assert.equal(await frame().locator(".prediction-children").evaluate((node) => getComputedStyle(node).animationName), "slideOut", "Original bar exit is preserved");
   const exitOpacity = await root().evaluate((node) => Number(getComputedStyle(node).opacity));
   assert(exitOpacity > 0 && exitOpacity < 1, "Exit has an actual intermediate visible frame");
   await check(async () => !await root().isVisible(), "exit cleans up title and bars", 1500);
@@ -146,8 +148,11 @@ try {
   await check(async () => JSON.stringify(await values()) === '["50%","50%"]', "equal preset");
   await page.waitForTimeout(1600);
   await page.screenshot({ path: "test-results/v2-visual-tie.png" });
+  await enter([1, 1], [1, 1]);
   await page.locator("#predictionLockButton").click();
   await check(async () => await root().getAttribute("data-phase") === "locked", "lock");
+  assert.equal(await field(0, "channelPoints").inputValue(), "10000", "Lock preserves sent totals rather than committing an unsent draft");
+  assert.deepEqual(await values(), ["50%", "50%"]);
   const title = await frame().locator(".prediction-title-text").textContent();
   assert(title.startsWith("🛑 ") && title.endsWith(" 🛑"), "STOP is present at both ends");
   await page.screenshot({ path: "test-results/v2-visual-lock.png" });
