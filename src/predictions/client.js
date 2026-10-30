@@ -38,15 +38,21 @@ function hide() {
   clock.textContent = "";
   children.replaceChildren();
   nodes.clear();
+  children.style.height = "";
+  delete children.dataset.frozen;
   lastView = "";
 }
 
-function createOutcome(outcome) {
+function createOutcome(outcome, index, animate) {
   const node = document.createElement("div");
   node.className = "prediction-child";
   node.dataset.outcomeId = outcome.id;
   // Only this fixed template is HTML. All Twitch titles and numbers use textContent.
-  node.innerHTML = '<div class="progress-bar-stats"><div class="progress-bar-text"></div></div><div class="progress-bar"><div class="prediction-outcome"></div><div class="progress-bar-percent-text"></div></div><div class="progress-bar-metrics"><span class="progress-bar-users-text"></span><span class="multiplier-text"></span></div>';
+  node.innerHTML = '<div class="progress-bar-stats"><div class="progress-bar-stats-child"><div class="progress-bar-text"></div></div></div><div class="progress-bar"><div class="prediction-outcome progress-bar-foreground-1"><div class="outcome-shade"></div></div><div class="progress-bar-percent-text"></div></div><div class="progress-bar-multiplier"><i class="fa-regular fa-star" aria-hidden="true"></i> <span class="multiplier-text"></span></div><div class="progress-bar-users"><span class="progress-bar-users-text"><i class="fa-regular fa-user" aria-hidden="true"></i> </span></div>';
+  if (animate) {
+    node.classList.add("slideIn");
+    node.style.animationDelay = (500 + (index + 1) * 150) + "ms";
+  }
   children.append(node);
   nodes.set(outcome.id, node);
   return node;
@@ -61,7 +67,9 @@ function render() {
   const prediction = snapshot.prediction;
   const key = prediction.id + ":" + view.phase;
   const entering = overlay.hidden || overlay.dataset.predictionId !== prediction.id;
-  if (overlay.dataset.predictionId !== prediction.id) { children.replaceChildren(); nodes.clear(); }
+  if (overlay.dataset.predictionId !== prediction.id) {
+    children.replaceChildren(); nodes.clear(); children.style.height = ""; delete children.dataset.frozen;
+  }
   overlay.hidden = false;
   overlay.dataset.predictionId = prediction.id;
   overlay.dataset.phase = view.phase;
@@ -70,38 +78,95 @@ function render() {
   // A duplicated result updates its data but never restarts its animation or deadline.
   if (entering || key !== lastView) {
     overlay.className = "prediction-overlay";
-    if (entering) overlay.classList.add("fadeIn");
+    overlay.style.animationDelay = "0s";
+    // Re-enter the result even when it arrives straight from active voting.
+    // Replays of the same result must not restart this entrance.
+    if (entering || view.phase === "resolved" || view.phase === "canceled") {
+      const age = ["resolved", "canceled"].includes(view.phase) ? Math.max(0, now - Date.parse(prediction.ended_at)) : 0;
+      if (age < 500) {
+        void overlay.offsetWidth;
+        overlay.style.animationDelay = -age + "ms";
+        overlay.classList.add("fadeIn");
+      }
+    }
   }
   lastView = key;
-  overlay.classList.toggle("is-exiting", Boolean(view.hideAt && now >= view.hideAt - 400));
+  overlay.classList.toggle("is-exiting", Boolean(view.hideAt && now >= view.hideAt - 700));
   overlay.classList.toggle("is-many", prediction.outcomes.length > 5);
   const prefix = view.phase === "resolved" ? "🏆 " : view.phase === "canceled" ? "Cancelada: " : view.phase === "locked" ? "🛑 " : "";
-  title.textContent = prefix + prediction.title + (view.phase === "resolved" ? " 🏆" : "");
-  clock.hidden = view.phase !== "active";
+  title.textContent = prefix + prediction.title + (view.phase === "resolved" ? " 🏆" : view.phase === "locked" ? " 🛑" : "");
+  // Keep the clock's original space while fading it on lock/end.
+  clock.classList.toggle("is-inactive", view.phase !== "active");
   clock.textContent = String(Math.floor(view.seconds / 60)).padStart(2, "0") + ":" + String(view.seconds % 60).padStart(2, "0");
   const known = prediction.outcomes.every((outcome) => outcome.channel_points !== null);
   const total = prediction.outcomes.reduce((sum, outcome) => sum + (outcome.channel_points || 0), 0);
-  const available = Math.max(0, children.clientWidth - (prediction.outcomes.length - 1) * 10);
+  // Original bars overlap their rectangular bounds by 10px. The slanted
+  // edges leave the same compact 5px visible separation as the legacy widget.
+  const available = children.clientWidth + (prediction.outcomes.length - 1) * 10;
   const minimum = Math.min(96, available / prediction.outcomes.length);
   const percents = prediction.outcomes.map((outcome) => !known || total === 0 ? 100 / prediction.outcomes.length : outcome.channel_points / total * 100);
-  const remaining = Math.max(0, available - minimum * prediction.outcomes.length);
-  // Reserved readable minima and a proportional remainder always fit, even with ten options.
+  const ideals = percents.map((percent) => available * percent / 100);
+  const widths = ideals.map((width) => Math.max(minimum, width));
+  const overflow = Math.max(0, widths.reduce((sum, width) => sum + width, 0) - available);
+  const capacity = widths.reduce((sum, width) => sum + Math.max(0, width - minimum), 0);
+  // Preserve real proportions. Only borrow width where a small option needs
+  // a readable minimum; adding a minimum to every option distorted 25/75 splits.
+  if (capacity > 0) widths.forEach((width, index) => { widths[index] -= overflow * Math.max(0, width - minimum) / capacity; });
   prediction.outcomes.forEach((outcome, index) => {
-    const node = nodes.get(outcome.id) || createOutcome(outcome);
+    const node = nodes.get(outcome.id) || createOutcome(outcome, index, entering && view.phase === "active");
+    if (view.phase !== "active") node.classList.remove("slideIn");
     const winning = outcome.id === prediction.winning_outcome_id;
     node.classList.toggle("is-loser", view.phase === "resolved" && view.resultStep >= 1 && !winning);
     node.classList.toggle("is-winner", view.phase === "resolved" && view.resultStep >= 2 && winning);
-    node.classList.toggle("is-collapsed", view.phase === "resolved" && view.resultStep >= 2 && !winning);
-    node.style.width = (view.phase === "resolved" && view.resultStep >= 2 ? winning ? children.clientWidth : 0 : minimum + remaining * percents[index] / 100) + "px";
+    if (!children.dataset.frozen) node.style.width = widths[index] + "px";
+    if (children.dataset.frozen) {
+      node.style.left = (view.resultStep >= 2 && winning ? 0 : widths.slice(0, index).reduce((sum, width) => sum + width - 10, 0)) + "px";
+      node.style.width = (view.resultStep >= 2 && winning ? children.clientWidth : widths[index]) + "px";
+    }
     node.querySelector(".progress-bar-text").textContent = outcome.title;
     node.querySelector(".prediction-outcome").style.backgroundColor = ["#ffbb00", "#0f63ff", "#ff0000"][index % 3];
-    node.querySelector(".progress-bar-percent-text").textContent = known ? Math.round(percents[index]) + "%" : "…";
-    node.querySelector(".progress-bar-users-text").textContent = "♙ " + (outcome.users === null ? "…" : outcome.users.toLocaleString("es-ES"));
+    // Before Twitch supplies totals, retain the original equal initial split.
+    // This is a presentation fallback; unknown counters stay null in state/storage.
+    node.querySelector(".progress-bar-percent-text").textContent = Math.round(percents[index]) + "%";
+    node.querySelector(".progress-bar-users-text").lastChild.textContent = " " + (outcome.users === null ? "…" : outcome.users.toLocaleString("en-US"));
     const multiplier = total > 0 && outcome.channel_points > 0 ? total / outcome.channel_points : null;
-    node.querySelector(".multiplier-text").textContent = multiplier === null ? "" : "×" + multiplier.toFixed(1);
+    node.querySelector(".multiplier-text").textContent = "x" + (multiplier === null ? "1.0" : multiplier.toFixed(1));
   });
+  if (view.phase === "resolved" && !children.dataset.frozen) {
+    // Freeze existing nodes in place instead of requiring clones made by lock.
+    // Read all positions before mutating layout. offsetTop ignores entrance transforms.
+    const positions = [...nodes.values()].map((node) => ({ node, left: node.offsetLeft, top: node.offsetTop, width: node.offsetWidth }));
+    children.style.height = children.offsetHeight + "px";
+    children.dataset.frozen = "true";
+    for (const { node, left, top, width } of positions) {
+      Object.assign(node.style, { position: "absolute", margin: "0", left: left + "px", top: top + "px", width: width + "px" });
+    }
+    // Finish any in-flight vote-width transition using the final totals. Freezing
+    // measured widths alone would strand a 50/50 result at an earlier 25/75 frame.
+    void children.offsetWidth;
+    let left = 0;
+    prediction.outcomes.forEach((outcome, index) => {
+      const node = nodes.get(outcome.id);
+      node.style.left = left + "px";
+      node.style.width = widths[index] + "px";
+      left += widths[index] - 10;
+    });
+    // A newly opened overlay jumps directly to the elapsed result step.
+    if (view.resultStep >= 2) {
+      const winner = nodes.get(prediction.winning_outcome_id);
+      winner.style.transition = "none";
+      winner.style.left = "0px";
+      winner.style.width = children.clientWidth + "px";
+      void winner.offsetWidth;
+      winner.style.transition = "";
+    }
+  }
   // This timer belongs to the renderer, never to a particular socket or CSS animation.
-  tickTimer = setTimeout(render, view.hideAt ? Math.max(1, Math.min(250, view.hideAt - now)) : 250);
+  // Wake exactly at sequence boundaries as well as the hard cleanup deadline.
+  const boundaries = view.hideAt ? [view.hideAt - 700, view.hideAt] : [];
+  if (view.phase === "resolved") boundaries.push(Date.parse(prediction.ended_at) + 3000, Date.parse(prediction.ended_at) + 5000);
+  const nextBoundary = Math.min(...boundaries.filter((time) => time > now));
+  tickTimer = setTimeout(render, Math.max(1, Math.min(250, nextBoundary - now)));
   if (view.phase === "locked" && prediction.status === "active") requestSync();
 }
 

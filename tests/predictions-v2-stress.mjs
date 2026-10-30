@@ -86,6 +86,7 @@ try {
       counters.destroyedSources++;
     }
     const canceled = round % 3 === 0;
+    if (!canceled) await page.locator("#predictionWinningOutcome").selectOption("outcome-" + (round % options + 1));
     await page.locator(canceled ? "#predictionEndCanceledButton" : "#predictionResolveWinnerButton").click();
     await check(async () => (await state("A")).phase === (canceled ? "canceled" : "resolved") && (await state("B")).phase === (canceled ? "canceled" : "resolved"), "end reaches both overlays");
     if (canceled) assert(!(await state("B")).text.includes("🏆"));
@@ -142,6 +143,7 @@ try {
   await page.screenshot({ path: "test-results/v2-stress-active-survives.png" });
 
   // Reconnect several times during a result and verify one immutable deadline.
+  await page.locator("#predictionWinningOutcome").selectOption("outcome-1");
   await page.locator("#predictionResolveWinnerButton").click();
   await check(async () => (await state("B")).phase === "resolved", "final result");
   const finalDeadline = (await state("B")).deadline;
@@ -171,6 +173,7 @@ try {
   await brokenPage.locator("#predictionBeginNormalButton").click();
   const brokenFrame = brokenPage.frameLocator("#widgetFrame");
   await check(async () => await brokenFrame.locator(".prediction-overlay").isVisible(), "live state works when all store operations fail");
+  await brokenPage.locator("#predictionWinningOutcome").selectOption("outcome-2");
   await brokenPage.locator("#predictionResolveWinnerButton").click();
   await check(async () => await brokenFrame.locator(".prediction-overlay").getAttribute("data-phase") === "resolved", "result works without storage");
   await check(async () => !await brokenFrame.locator(".prediction-overlay").isVisible(), "result cleanup works without storage", 12000);

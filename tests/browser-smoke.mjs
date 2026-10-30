@@ -136,6 +136,7 @@ try {
   await page.locator("#overlayHideButton").click();
   await page.locator("#predictionLockButton").click();
   assert(await page.locator('#predictionOutcomes input[data-outcome-field="users"]').first().isDisabled(), "Twitch valid mode freezes vote inputs after lock");
+  await page.locator("#predictionWinningOutcome").selectOption("outcome-1");
   await page.locator("#predictionResolveWinnerButton").click();
   await check(async () => (await wire(frameB)).type === "channel.prediction.end", "Deliver while hidden receives end");
 
@@ -143,6 +144,7 @@ try {
   await check(async () => (await wire(frameB)).type === "channel.prediction.begin", "Hidden live B receives next begin");
   await page.locator("#overlayHiddenDeliveryMode").selectOption("skip");
   await page.locator("#predictionLockButton").click();
+  await page.locator("#predictionWinningOutcome").selectOption("outcome-1");
   await page.locator("#predictionResolveWinnerButton").click();
   await check(async () => (await wire(frameA)).type === "channel.prediction.end", "Visible A receives end while B is skipped");
   assert.equal((await wire(frameB)).type, "channel.prediction.begin", "Hidden B missed end as configured");

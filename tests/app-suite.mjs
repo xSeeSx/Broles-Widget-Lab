@@ -25,7 +25,7 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     return { state, elements, testFrames, beginNormalPrediction, sendPredictionProgressWithCurrentVotes,
       lockPrediction, endPredictionByOutcomeId, setOverlayDeliveryTarget, getTargetFrameResult,
       resetPredictionLabState, buildIframeDocument, startPredictionWindow, beginTenOutcomePrediction,
-      runReloadOverlayBWhileLockedScenario, buildPredictionPayload };
+      runReloadOverlayBWhileLockedScenario, buildPredictionPayload, resolvePredictionWithSelectedWinner, applyVotePattern };
   `, { window, document, emitted, logs, predictionEvent, presentationFor, eventTransition, reducePrediction, crypto: { randomUUID: () => String(++identity) } });
   const results = [];
   const test = (name, action) => { action(); results.push(name); };
@@ -41,6 +41,16 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     assert(emitted.map((x) => x.type).join(",") === "channel.prediction.begin,channel.prediction.progress,channel.prediction.lock,channel.prediction.end", "normal flow");
     app.beginNormalPrediction();
     assert(emitted.at(-1).event.id !== id, "new prediction ID");
+  });
+  test("an equal split never selects a winner and resolving requires a choice", () => {
+    assert(app.state.prediction.winningOutcomeId === null, "Begin clears the last result selection");
+    app.applyVotePattern("equal");
+    assert(app.state.prediction.outcomes.every((x) => x.channelPoints === 10000), "exact tie preset");
+    const count = emitted.length;
+    const timers = scheduled.size;
+    app.resolvePredictionWithSelectedWinner();
+    assert(emitted.length === count, "no default winner or invalid end");
+    assert(scheduled.size === timers, "invalid resolve cannot cancel automatic lock");
   });
   test("generated prediction uses the broadcaster configured in the real widget", () => {
     const payload = app.buildPredictionPayload("begin");
