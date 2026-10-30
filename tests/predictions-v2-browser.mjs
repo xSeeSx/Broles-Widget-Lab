@@ -86,13 +86,16 @@ try {
   assert.equal(stored.schemaVersion, 2); assert.equal(stored.snapshot.prediction.status, "resolved");
   // Inject an older shared-storage write while a server-confirmed result is current.
   const old = structuredClone(stored); old.snapshot.revision = 0; old.snapshot.prediction.title = "Obsoleto";
-  await b().locator("body").evaluate((value) => window.SE_API.store.set("brolesPredictions133649243v2", value), old);
-  await new Promise((r) => setTimeout(r, 100));
+  await b().locator("body").evaluate((_node, value) => window.SE_API.store.set("brolesPredictions133649243v2", value), old);
+  const injected = await b().locator("body").evaluate(() => window.SE_API.store.get("brolesPredictions133649243v2"));
+  assert.equal(injected.snapshot.revision, 0, "The stale snapshot was actually written to the shared store");
+  assert.equal(injected.snapshot.prediction.title, "Obsoleto");
   assert(!(await b().locator(".prediction-title-text").textContent()).includes("Obsoleto"));
   await check(async () => !await b().locator(".prediction-overlay").isVisible(), "result deadline hides title and bars after replay/reload", 12000);
   assert.equal(await b().locator(".prediction-title-text").textContent(), "");
   assert.equal(await b().locator(".prediction-child").count(), 0);
-  await b().locator("body").evaluate((value) => window.__LAB_WORKER_MOCK__.broadcast(value), stored.snapshot);
+  const deliveredReplay = await b().locator("body").evaluate((_node, value) => window.__LAB_WORKER_MOCK__.broadcast(value), stored.snapshot);
+  assert.equal(deliveredReplay, 1, "The old timestamp replay actually reaches an open socket");
   await new Promise((r) => setTimeout(r, 100));
   assert.equal(await b().locator(".prediction-overlay").isVisible(), false, "Replaying an old server timestamp cannot rewind the result clock");
   await page.locator("#overlayRefreshButton").click();

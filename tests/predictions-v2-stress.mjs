@@ -6,12 +6,12 @@ await mkdir("test-results", { recursive: true });
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
 const page = await context.newPage();
-const errors = [], warnings = [];
+const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 const frame = (id) => page.frameLocator(`iframe[data-overlay-id="${id}"]`);
 const root = (id) => frame(id).locator(".prediction-overlay");
 const key = "brolesPredictions133649243v2";
-const counters = { cycles: 0, snapshotsReplayed: 0, staleWrites: 0, reconnects: 0, destroyedSources: 0 };
+const counters = { cycles: 0, snapshotsReplayed: 0, staleWrites: 0, reconnects: 0, destroyedSources: 0, socketCuts: 0 };
 const check = async (action, label, ms = 12000) => {
   const until = Date.now() + ms;
   while (!await action()) { if (Date.now() > until) throw new Error(label); await new Promise((r) => setTimeout(r, 40)); }
@@ -22,9 +22,11 @@ const open = async (title) => {
 };
 const state = (id) => root(id).evaluate((node) => ({ id: node.dataset.predictionId, phase: node.dataset.phase,
   revision: node.dataset.revision, deadline: node.dataset.hideAt, hidden: node.hidden, text: node.innerText }));
-const cache = (id) => frame(id).locator("body").evaluate((name) => window.SE_API.store.get(name), key);
-const broadcast = (id, snapshots) => frame(id).locator("body").evaluate((values) => {
-  for (const value of values) window.__LAB_WORKER_MOCK__.broadcast(value, { recordPrediction: false });
+const cache = (id) => frame(id).locator("body").evaluate((_node, name) => window.SE_API.store.get(name), key);
+const broadcast = (id, snapshots) => frame(id).locator("body").evaluate((_node, values) => {
+  let delivered = 0;
+  for (const value of values) delivered += window.__LAB_WORKER_MOCK__.broadcast(value, { recordPrediction: false });
+  if (delivered !== values.length) throw new Error("Fault injection must reach exactly one open socket per packet");
 }, snapshots);
 try {
   await page.goto("http://127.0.0.1:4173/?widget=prediccion-v2", { waitUntil: "networkidle" });
@@ -59,7 +61,7 @@ try {
       await broadcast("B", old);
       counters.snapshotsReplayed += old.length * 2;
       const stale = { schemaVersion: 2, snapshot: old[0] };
-      await frame("A").locator("body").evaluate(({ key, value }) => window.SE_API.store.set(key, value), { key, value: stale });
+      await frame("A").locator("body").evaluate((_node, { key, value }) => window.SE_API.store.set(key, value), { key, value: stale });
       counters.staleWrites++;
       const after = await state("B");
       assert.equal(after.id, active.id); assert.equal(after.phase, "active");
@@ -108,6 +110,28 @@ try {
   await page.locator("#predictionBeginNormalButton").click();
   await check(async () => (await state("B")).phase === "active", "new prediction starts after packet burst");
   const survivor = await state("B");
+  // Repeated actual socket closures, including duplicate close attempts, must recover once.
+  for (let cut = 0; cut < 6; cut++) {
+    const before = {};
+    for (const id of ["A", "B"]) {
+      before[id] = await frame(id).locator("body").evaluate(() => window.__LAB_WORKER_MOCK__.connections[0]);
+      await frame(id).locator("body").evaluate(() => {
+        window.__LAB_WORKER_MOCK__.closeAll("stress network cut");
+        window.__LAB_WORKER_MOCK__.closeAll("stress duplicate close");
+      });
+      counters.socketCuts++;
+    }
+    for (const id of ["A", "B"]) {
+      await check(async () => frame(id).locator("body").evaluate((_node, old) => {
+        const list = window.__LAB_WORKER_MOCK__.connections;
+        return list.length === 1 && list[0] !== old;
+      }, before[id]), "one replacement connection per overlay");
+      assert.equal((await state(id)).id, survivor.id);
+      assert.equal((await state(id)).phase, "active");
+    }
+  }
+  await check(async () => await page.locator("#workerConnectionCount").textContent() === "2", "no leaked parent connections");
+  console.log("PASS stress twelve socket cuts recover without duplicate connections");
   await new Promise((resolve) => setTimeout(resolve, 11000));
   for (const id of ["A", "B"]) {
     const actual = await state(id);
@@ -131,6 +155,7 @@ try {
   await broadcast("B", previous.slice().reverse());
   assert.equal((await state("B")).hidden, true, "Old results cannot resurrect an expired result");
   assert.equal(await frame("B").locator(".prediction-title-text").textContent(), "");
+  assert.equal(await frame("B").locator(".prediction-child").count(), 0, "No old bars accumulate across cycles");
   await page.screenshot({ path: "test-results/v2-stress-final-cleared.png" });
 
   // SE store can fail completely while the live widget must still operate.
