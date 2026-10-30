@@ -65,6 +65,14 @@ El despliegue automatico se ejecuta con GitHub Actions desde `.github/workflows/
 
 La revisión de fidelidad, cobertura, pruebas y escenarios de resultado atascado está en [docs/phase-1-fidelity.md](docs/phase-1-fidelity.md). Para comprobar contratos sin dependencias: `node tests/contracts.mjs`. GitHub Actions ejecuta la misma suite y pruebas de iframes reales en Chromium, con capturas de Demo, Marco, Predicción, almacenamiento y la regresión del resultado atascado. El contraste con StreamElements real y OBS es un paso independiente.
 
+## Vista para OBS real
+
+Abrir [Predicción en vista OBS](https://xseesx.github.io/Broles-Widget-Lab/?view=obs&widget=prediccion&controls=1) o copiar ese enlace en una fuente Navegador de prueba. El selector Widget genera el enlace correspondiente al widget seleccionado.
+
+En OBS usar **Interactuar** y **F2** para ocultar o mostrar los controles. La vista limpia tiene fondo transparente, ocupa el tamaño real de la fuente y muestra el overlay A/B seleccionado sin zoom CSS. Los eventos de Twitch y el Worker siguen siendo simulados; las animaciones se ejecutan en el CEF real de OBS. No se aplica un limitador de FPS ni se intenta imitar CEF en el navegador normal.
+
+El diagnóstico registra los eventos nativos de visibilidad/actividad y, mientras están abiertos los controles, intervalos de callbacks rAF. El informe Debug incorpora esos datos. La medición rAF no equivale a los FPS de salida de OBS. El procedimiento y los límites de reiniciar toda la fuente están en [la guía de fase 1](docs/phase-1-fidelity.md#prueba-dentro-de-obs-real).
+
 ## Mock de StreamElements
 
 `src/harness/se-mock.js` expone dentro del iframe:

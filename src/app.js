@@ -6,6 +6,7 @@ import {
 
 import { createSEStoreHost } from "./harness/se-store-host.js";
 import { predictionEvent } from "./harness/prediction-contract.js";
+import { initializeOBSView } from "./obs-view.js";
 
 const LAB_SOURCE = "losbroles-widget-lab";
 const WIDGET_SOURCE = "losbroles-widget-lab-widget";
@@ -176,6 +177,7 @@ const elements = {};
 let seStoreHost;
 let predictionWindowTimer = null;
 let resultSceneScenarioId = 0;
+let obsView;
 
 function initializeSEStore() {
   let storage;
@@ -196,6 +198,10 @@ async function init() {
   setupCollapsibleSections();
   bindEvents();
   initializeSEStore();
+  obsView = initializeOBSView({
+    onResize: applyResponsiveMode,
+    log: (level, message, data) => writeLog(level, "lab", message, data)
+  });
   writeLog("info", "lab", "Inicializando laboratorio");
 
   try {
@@ -717,7 +723,9 @@ async function loadRegistry() {
   }
 
   renderWidgetOptions();
-  await loadWidget(state.widgets[0].id);
+  const preferredId = obsView?.preferredWidgetId;
+  const firstWidget = state.widgets.find((widget) => widget.id === preferredId) || state.widgets[0];
+  await loadWidget(firstWidget.id);
 }
 
 async function validateWidgets() {
@@ -860,6 +868,7 @@ function clearImportPreviewOption() {
 }
 
 async function previewImportedWidget() {
+  resultSceneScenarioId += 1;
   let draft;
 
   try {
@@ -1129,6 +1138,7 @@ function setImportStatus(message, level = "info") {
 }
 
 async function loadWidget(widgetId) {
+  resultSceneScenarioId += 1;
   const widget = state.widgets.find((item) => item.id === widgetId);
 
   if (!widget) {
@@ -1185,6 +1195,7 @@ async function loadWidget(widgetId) {
 }
 
 function renderWidgetMeta(widget) {
+  obsView?.updateLink(widget.id);
   elements.widgetMeta.replaceChildren();
 
   const title = document.createElement("strong");
@@ -1376,6 +1387,7 @@ function buildDebugReport() {
     page: window.location.href,
     selectedWidget: state.selectedWidget,
     responsive: state.responsive,
+    renderEnvironment: obsView?.report() || null,
     validationResults: state.validationResults,
     logs: state.debugEntries,
     workerConnections: Array.from(elements.workerConnectionList.querySelectorAll(".worker-connection-entry")).map((item) => item.textContent)
@@ -1383,6 +1395,10 @@ function buildDebugReport() {
 }
 
 function applyResponsiveMode() {
+  if (obsView?.enabled) {
+    applyPreviewDimensions(window.innerWidth, window.innerHeight, 1);
+    return;
+  }
   const [width, height] = state.responsive.preset.split("x").map((value) => Number.parseInt(value, 10));
   const zoom = Number(state.responsive.zoom) || 1;
 
@@ -2097,6 +2113,10 @@ function beginNormalPrediction() {
 }
 
 function beginTenOutcomePrediction() {
+  if (isPredictionSetupLocked()) {
+    writeLog("warn", "lab", "Prediction setup is immutable after Begin. Use Stress mode to change it.");
+    return;
+  }
   syncPredictionFromControls();
   resizePredictionOutcomes(PREDICTION_LIMITS.outcomesMax);
   state.prediction.outcomes.forEach((outcome, index) => {
@@ -2865,7 +2885,7 @@ function postWorkerBroadcast(type, payload, label, options = {}) {
       activeWidget: state.selectedWidget?.id || null,
       overlayTarget: target,
       skippedHiddenOverlays: targetFrameResult.skippedHidden,
-    skippedUnavailableOverlays: targetFrameResult.skippedUnavailable,
+      skippedUnavailableOverlays: targetFrameResult.skippedUnavailable,
       workerUrl: state.worker.workerUrl,
       interceptWebSocket: state.worker.interceptWebSocket,
       expectedIntercept: "Worker mock intercepts WebSocket URLs containing /ws or the configured Worker URL.",
@@ -3163,6 +3183,7 @@ function buildIframeDocument({ manifest, html, css, script, fieldsSchema, fieldD
   };
 
   window.__LAB_SE_INITIAL_LOAD__ = ${escapeScript(JSON.stringify(state.seFixtures.widgetLoad || {}))};
+  window.__LAB_SE_EDITOR_MODE__ = ${JSON.stringify(!obsView?.enabled)};
   window.__LAB_FIELDS_SCHEMA__ = ${escapeScript(JSON.stringify(fieldsSchema))};
   window.__LAB_FIELDS__ = ${escapeScript(JSON.stringify(fieldData))};
   window.__LAB_WIDGET_MANIFEST__ = ${escapeScript(JSON.stringify(manifest))};

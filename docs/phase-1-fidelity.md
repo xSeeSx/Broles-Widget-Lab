@@ -6,6 +6,8 @@ Revisión de contrato: 2026-10-30.
 
 Esta fase modifica el laboratorio. El widget importado en `widgets/prediccion/` se conserva íntegro como referencia con fallos conocidos. No se ha modificado el Worker desplegado ni se ha iniciado el widget de la fase 3.
 
+La entrega de la fase 1 queda cerrada como base de pruebas de contratos, recuperación y escenarios de overlays. Incluye una vista para ejecutar el laboratorio dentro de OBS real. La validación específica de CEF en el equipo del usuario forma parte de las pruebas de integración del widget nuevo, antes de usarlo en producción; no se presenta como ya realizada ni bloquea la investigación de la fase 2.
+
 El laboratorio reproduce contratos y ciclos de vida para detectar errores. No certifica equivalencia completa con StreamElements, sus servidores, OBS ni CEF. Las pruebas de contrato se ejecutan con dobles de eventos y reloj; no son pruebas visuales del navegador.
 
 ## Qué se comprueba
@@ -17,7 +19,7 @@ El laboratorio reproduce contratos y ciclos de vida para detectar errores. No ce
 | `SE_API.store.set` | Sobrescritura completa, compartida por cuenta simulada, sin Promise garantizada | Sin transacciones, CAS, bloqueo de escritores ni garantía de orden entre dispositivos |
 | Persistencia | Fuera del iframe, localStorage de la página del laboratorio | Mismo navegador/origen, no nube; si falla se informa. Un fallo de lectura/escritura se registra, nunca se anuncia como éxito |
 | `kvstore:update` | `detail.event.data.key = customWidget.<key>` y `value`, para fuentes vivas A/B y escritor | La latencia de Internet y la entrega del servidor SE no se reproducen |
-| API auxiliar | counters.get devuelve {id,count}; getOverlayStatus y sanitize tienen forma documentada | Sin filtros de palabras de una cuenta real, getOverlayStatus fijo en modo editor; setField y cola no emulan todas las funciones del editor |
+| API auxiliar | counters.get devuelve {id,count}; getOverlayStatus y sanitize tienen forma documentada; modo editor en lab y publicado en vista OBS | Sin filtros de palabras de una cuenta real; setField y cola no emulan todas las funciones del editor |
 | Predicciones | Begin sin contadores; progress/lock/end con campos propios y nulls | Votos y premios sintéticos, no algoritmo económico de Twitch |
 | Twitch valid mode | Identificador nuevo por Begin, una predicción sin resolver, cierre automático al vencer la ventana, sin votos tras lock, configuración inmutable durante la predicción | No ejecuta OAuth, límites de frecuencia, resolución automática a las 24 horas ni Helix |
 | Stress | Eventos explícitos sin completar con fixtures; controles de errores y pérdida de entrega | Son inyecciones de fallos, no comportamientos normales garantizados |
@@ -65,11 +67,28 @@ node tests/contracts.mjs
 
 La suite cubre almacenamiento compartido y persistente, notificaciones, sobrescritura, errores de lectura, carga automática, forma de eventos, ausencia de relleno artificial, URL de producción interceptada, recuento de conexiones, reset, historial, IDs nuevos, temporizadores por predicción y entrega A/B.
 
-GitHub Actions también ejecuta `tests/browser-smoke.mjs` en Chromium real. Comprueba carga de Demo, DOM de Marco, begin de Predicción, SE_API.store entre iframes A/B, destroy/show/refresh y persistencia al recargar la página. Guarda capturas en el artefacto `lab-browser-smoke`. Incluye una reproducción explícita del fallo legado de trofeos tras desconexión durante el resultado: ese fallo del widget de referencia es esperado, no es un criterio de éxito de la versión futura.
+GitHub Actions también ejecuta `tests/browser-smoke.mjs` en Chromium real. Comprueba carga de Demo, DOM de Marco, begin de Predicción, SE_API.store entre iframes A/B, destroy/show/refresh y persistencia al recargar la página. Además comprueba diez opciones y votos, destino B, Deliver/Skip mientras está oculto, replay manual, snapshot bloqueado tras recarga, cancelación, active_expired y la vista para OBS. Guarda capturas en el artefacto `lab-browser-smoke`. Incluye una reproducción explícita del fallo legado de trofeos tras desconexión durante el resultado: ese fallo del widget de referencia es esperado, no es un criterio de éxito de la versión futura.
 
 Para ejecutar esa comprobación fuera de CI, instalar `playwright@1.64.1`, ejecutar `npx playwright install chromium`, servir la raíz en 127.0.0.1:4173 y lanzar `node tests/browser-smoke.mjs`.
 
-Pendiente de contraste externo: una captura de eventos de StreamElements real y las variantes de escena en OBS con sus opciones de apagar/refrescar fuente anotadas. La revisión no tuvo acceso al navegador personal conectado ni a OBS. Chromium en CI no sustituye ese contraste.
+Pendiente de contraste externo antes del uso en producción del widget nuevo: una captura de eventos de StreamElements real y las variantes de escena en OBS con sus opciones de apagar/refrescar fuente anotadas. Chromium en CI no sustituye ese contraste.
+
+## Prueba dentro de OBS real
+
+En el selector Widget aparece el enlace **Abrir vista de prueba para OBS**. Para Predicción, la URL publicada es:
+
+https://xseesx.github.io/Broles-Widget-Lab/?view=obs&widget=prediccion&controls=1
+
+1. Crear una fuente Navegador de prueba y pegar esa URL. Usar el tamaño de la fuente habitual, por ejemplo 1920 × 1080.
+2. Abrir **Interactuar**. El panel contiene los mismos controles de predicción, Worker y overlays A/B.
+3. Pulsar **F2** para ocultar o mostrar el panel, o **Escape** para ocultarlo. Sin panel se dibuja únicamente el overlay activo, a tamaño real y con fondo transparente. El enlace sin `controls=1` arranca limpio.
+4. Probar Begin, Progress, Lock, End y los escenarios de stress. Probar los FPS de la fuente en las propiedades de OBS, por ejemplo 15, 30 y 60. No se añade un limitador de FPS en JavaScript.
+5. Cambiar de escena con la fuente viva. Repetir con **Apagar fuente cuando no sea visible** y **Actualizar el navegador cuando la escena se active**, de uno en uno. Es OBS quien aplica esas opciones.
+6. En **Diagnóstico del entorno de render**, comprobar versión de la API OBS cuando exista, tamaño y eventos recibidos. **Copy debug report** incluye el diagnóstico y los últimos eventos nativos. El laboratorio observa `obsSourceVisibleChanged`, `obsSourceActiveChanged` y `obsSceneChanged`; no modifica escenas ni inicia grabaciones.
+
+El diagnóstico de rAF mide intervalos entre callbacks de la página, únicamente mientras el panel está abierto. No mide los FPS de salida de OBS ni sus fotogramas perdidos. No se fabrica `window.obsstudio` y no se emula CEF. El comportamiento real del render depende de la instalación de OBS que abra la URL.
+
+Cada vista contiene su propio servidor Worker simulado. Los overlays A/B dentro de esa vista comparten el servidor. Si OBS destruye toda la página, ese servidor se reinicia; SE_API.store sigue persistiendo por separado en el perfil del navegador. Dos fuentes de OBS distintas son dos laboratorios independientes. Este modo permite probar animaciones y ciclo de vida de CEF real; la reconciliación con un servidor externo se diseñará en las fases 2 y 3.
 
 ## Fuentes oficiales
 
@@ -81,3 +100,5 @@ Pendiente de contraste externo: una captura de eventos de StreamElements real y 
 - https://dev.twitch.tv/docs/eventsub/handling-websocket-events/
 - https://dev.twitch.tv/docs/api/reference/#create-prediction
 - https://dev.twitch.tv/docs/api/reference/#end-prediction
+- https://obsproject.com/kb/browser-source
+- https://github.com/obsproject/obs-browser#register-for-event-callbacks

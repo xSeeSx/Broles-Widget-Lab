@@ -8,6 +8,7 @@
     <script type="module" src="src/app.js"></script>
   </head>
   <body>
+    <button id="obsControlsToggle" hidden type="button" aria-expanded="false">Ocultar controles (F2)</button>
     <header class="app-header">
       <div>
         <p class="eyebrow">StreamElements / Twitch sandbox</p>
@@ -22,6 +23,12 @@
           <label class="field-label" for="widgetSelect">Widget</label>
           <select id="widgetSelect" class="select-input"></select>
           <div id="widgetMeta" class="meta-block"></div>
+          <a id="obsViewLink" href="?view=obs&amp;widget=prediccion&amp;controls=1" target="_blank" rel="noopener">Abrir vista de prueba para OBS</a>
+          <p class="helper-text">Copia el enlace en una fuente Navegador de OBS. Usa Interactuar y F2 para mostrar u ocultar los controles. Los eventos de Twitch siguen siendo simulados.</p>
+          <details>
+            <summary>Diagnóstico del entorno de render</summary>
+            <pre id="obsDiagnostics" class="meta-block"></pre>
+          </details>
         </section>
 
         <section class="panel-section chat-panel" aria-label="Chat simulator" data-panel-title="Chat simulator">

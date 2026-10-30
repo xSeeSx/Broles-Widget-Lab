@@ -22,7 +22,7 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     getOverlayFrame = (id) => testFrames.get(id);
     return { state, elements, testFrames, beginNormalPrediction, sendPredictionProgressWithCurrentVotes,
       lockPrediction, endPredictionByOutcomeId, setOverlayDeliveryTarget, getTargetFrameResult,
-      resetPredictionLabState, buildIframeDocument, startPredictionWindow };
+      resetPredictionLabState, buildIframeDocument, startPredictionWindow, beginTenOutcomePrediction };
   `, { window, document, emitted, logs, predictionEvent, crypto: { randomUUID: () => String(++identity) } });
   const results = [];
   const test = (name, action) => { action(); results.push(name); };
@@ -55,6 +55,13 @@ export async function runAppTests({ source, contract, evaluate, assert }) {
     const count = emitted.length;
     app.sendPredictionProgressWithCurrentVotes();
     assert(emitted.length === count, "locked progress blocked");
+  });
+  test("advanced ten-option shortcut cannot mutate an unresolved prediction", () => {
+    const count = app.state.prediction.outcomes.length;
+    const id = app.state.prediction.id;
+    app.beginTenOutcomePrediction();
+    assert(app.state.prediction.outcomes.length === count, "preset must not resize an active prediction");
+    assert(app.state.prediction.id === id, "preset must not replace active ID");
   });
   test("target changes are passive; hidden skip and destroyed frames are explicit", () => {
     app.state.overlays.instances.B = { id: "B", hidden: true, loaded: true };

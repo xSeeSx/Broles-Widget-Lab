@@ -95,6 +95,10 @@ export async function runContractTests({ sources, evaluate, createEventTarget, e
     equal(await a.win.SE_API.sanitize({ message: "hello" }), { skip: false, result: { message: "hello" } }, "sanitize shape");
   });
 
+  await test("cheerFilter removes simulated cheer tokens and returns a Promise", async () => {
+    equal(await a.win.SE_API.cheerFilter("shamrock100 This is a cheer message cheer100 cheerwhal100"), "This is a cheer message", "cheer filter");
+  });
+
   await test("EventSub begin has no vote fields; lock/end have correct time fields and nulls", async () => {
     const raw = { id: "p", title: "test", started_at: "2026-01-01T00:00:00Z", locks_at: "2026-01-01T00:01:00Z",
       locked_at: "2026-01-01T00:01:00Z", ended_at: "2026-01-01T00:02:00Z", status: "canceled", winning_outcome_id: "o1",

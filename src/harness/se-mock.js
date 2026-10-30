@@ -65,7 +65,7 @@
 
   function cheerFilter(message) {
     return Promise.resolve(String(message ?? "")
-      .replace(/\\b(?:cheer|bits|shamrock|cheerwhal)\\d+\\b/gi, "").replace(/\\s+/g, " ").trim());
+      .replace(/\b(?:cheer|bits|shamrock|cheerwhal)\d+\b/gi, "").replace(/\s+/g, " ").trim());
   }
 
   function dispatch(eventName, detail) {
@@ -201,7 +201,7 @@
 
     },
     getOverlayStatus() {
-      return Promise.resolve({ isEditorMode: true, muted: false });
+      return Promise.resolve({ isEditorMode: window.__LAB_SE_EDITOR_MODE__ !== false, muted: false });
     },
     sanitize,
     cheerFilter,
