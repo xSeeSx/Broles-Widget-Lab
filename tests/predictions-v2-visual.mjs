@@ -116,8 +116,16 @@ try {
         start ??= performance.now();
         const winner = container.querySelector('[data-outcome-id="outcome-2"]');
         const loser = container.querySelector('[data-outcome-id="outcome-1"]');
+        const label = winner.querySelector(".progress-bar-text");
+        const labelRect = label.getBoundingClientRect(), winnerRect = winner.getBoundingClientRect();
+        const labelStyle = getComputedStyle(label);
+        const labelScale = labelStyle.transform === "none" ? 1 : new DOMMatrixReadOnly(labelStyle.transform).a;
+        const barMotion = winner.getAnimations().find(animation => animation.animationName === "resultWinner");
+        const labelMotion = label.getAnimations().find(animation => animation.animationName === "resultWinnerLabel");
         window.resultMotionSamples.push({ time: performance.now() - start, width: winner.getBoundingClientRect().width,
           target: container.clientWidth, loserOpacity: Number(getComputedStyle(loser).opacity),
+          labelScale, labelCenterError: labelRect.left + labelRect.width / 2 - winnerRect.left - winnerRect.width / 2,
+          labelAnimation: labelStyle.animationName, barTime: barMotion?.currentTime ?? null, labelTime: labelMotion?.currentTime ?? null,
           animation: getComputedStyle(winner).animationName });
       }
       if (start === undefined || performance.now() - start < 5600) requestAnimationFrame(sample);
@@ -157,6 +165,13 @@ try {
   const peak = motionSamples.findIndex(sample => sample.width > sample.target + 5);
   assert(peak >= 0, "The winner visibly overshoots its final width");
   assert(motionSamples.slice(peak + 1).some(sample => sample.width < sample.target - 2), "The bounce returns through the final width before settling");
+  const labelSamples = motionSamples.filter(sample => sample.labelAnimation === "resultWinnerLabel");
+  assert(labelSamples.some(sample => sample.width > before.children[1].width + 10 && sample.width < sample.target - 10 && sample.labelScale > 1.01 && sample.labelCenterError < -1),
+    "The label moves toward the center and emphasizes while its bar is expanding");
+  assert(labelSamples.every(sample => Math.abs(sample.barTime - sample.labelTime) < 1), "Label and bar share the same animation clock");
+  assert(Math.max(...labelSamples.map(sample => sample.labelScale)) > 1.14, "The winner name has a visible emphasis pulse");
+  const finalLabel = labelSamples.at(-1);
+  assert(Math.abs(finalLabel.labelCenterError) < .5 && Math.abs(finalLabel.labelScale - 1.06) < .005, "The name settles centered with restrained emphasis");
   await writeFile("test-results/v2-result-motion.json", JSON.stringify(motionSamples, null, 2));
   assert.equal(Number(await root().getAttribute("data-hide-at")), deadline);
   await check(async () => await root().evaluate((node) => getComputedStyle(node).animationName === "fadeOut"), "exit animation starts", 5500);

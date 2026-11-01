@@ -23,11 +23,11 @@ const percentages = () => a().locator(".progress-bar-percent-text").allTextConte
 try {
   await page.goto(base.href, { waitUntil: "networkidle" });
   // A successful Pages deployment is insufficient if the browser serves an older entry module.
-  assert((await page.locator('script[type="module"]').getAttribute("src")).includes("visual-parity-2.0.2"), "The published HTML must request the corrected entry module");
+  assert((await page.locator('script[type="module"]').getAttribute("src")).includes("visual-parity-2.0.3"), "The published HTML must request the corrected entry module");
   await check(async () => await page.locator("#workerConnectionCount").textContent() === "1", "mock socket ready");
   assert.equal(await page.locator("#predictionWinningOutcome").inputValue(), "");
   assert(await page.locator("#predictionResolveWinnerButton").isDisabled());
-  assert((await page.locator("#logList").textContent()).includes('"version": "2.0.2"'), "The loaded widget manifest must identify the corrected release");
+  assert((await page.locator("#logList").textContent()).includes('"version": "2.0.3"'), "The loaded widget manifest must identify the corrected release");
   await page.locator("#predictionBeginNormalButton").click();
   await check(async () => await root().isVisible(), "prediction starts");
   assert.deepEqual(await percentages(), ["50%", "50%"]);
@@ -54,6 +54,10 @@ try {
     const winner = container.querySelector('[data-outcome-id="outcome-2"]');
     return winner && Math.abs(winner.getBoundingClientRect().width - container.clientWidth) < .1;
   }), "selected option fully expands", 8000);
+  await check(async () => a().locator('.prediction-child.is-winner').evaluate(node => {
+    const label = node.querySelector(".progress-bar-text"), rect = label.getBoundingClientRect(), bar = node.getBoundingClientRect();
+    return label.getAnimations().every(animation => animation.playState === "finished") && Math.abs(rect.left + rect.width / 2 - bar.left - bar.width / 2) < .5;
+  }), "winner name finishes centered", 2000);
   await page.screenshot({ path: "test-results/published/winner.png" });
   await check(async () => await root().evaluate(node => node.hidden && node.querySelector(".prediction-title-text").textContent === "" && node.querySelectorAll(".prediction-child").length === 0), "result cleans up", 7500);
   assert.equal(Number(await root().getAttribute("data-hide-at")), deadline, "Expiry remains absolute");
@@ -66,7 +70,7 @@ try {
   await page.screenshot({ path: "test-results/published/scene-switch-cleared.png" });
   assert.deepEqual(errors, []);
   await writeFile("test-results/published/report.json", JSON.stringify({ status: "passed", url: page.url(), commit: process.env.GITHUB_SHA || null,
-    version: "2.0.2", checks: ["versioned entry module", "original fonts loaded before display", "initial percentages and metrics", "manual 25/75 votes", "direct result and selected winner", "absolute cleanup", "scene switch after missed result"], errors }, null, 2));
+    version: "2.0.3", checks: ["versioned entry module", "original fonts loaded before display", "initial percentages and metrics", "manual 25/75 votes", "direct result and selected winner", "absolute cleanup", "scene switch after missed result"], errors }, null, 2));
   console.log("Published prediction smoke checks passed.");
 } catch (error) {
   await page.screenshot({ path: "test-results/published/failure.png" }).catch(() => {});
