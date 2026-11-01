@@ -84,6 +84,7 @@ try {
     while (performance.now() < until) { /* emulate a missed browser frame/timer */ }
     window.dispatchEvent(new Event("pageshow"));
   });
+  await check(async () => frame("B").locator(".prediction-overlay").isVisible(), "wake state is freshly verified before measuring its beat");
   const recovered = await capture("B", 2200);
   assertAligned(recovered, 2);
   console.log("PASS clock missed seconds are skipped, without queued pulses or lasting drift");

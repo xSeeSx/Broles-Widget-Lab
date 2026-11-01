@@ -2,6 +2,7 @@
 const DEFAULT_URL = "wss://losbroles.lessergio.workers.dev/ws/v2?broadcaster_id=133649243";
 const CHANNEL = "133649243";
 const STORE_KEY = "brolesPredictions133649243v2";
+const MAX_SYNC_AGE_MS = 5000;
 // Local choreography, independent of the bridge protocol and absolute expiry.
 const RESULT_MOTION = Object.freeze({ fadeMs: 800, overlapMs: 250, expandMs: 1000 });
 const winnerStartsAtMs = POLICY.fadeLosersAtMs + RESULT_MOTION.fadeMs - RESULT_MOTION.overlapMs;
@@ -33,6 +34,29 @@ const retiredEpochs = new Set();
 const nodes = new Map();
 const warn = (code) => console.warn("[Predicciones v2] " + code);
 const serverNow = () => clockAnchor ? clockAnchor.server + mono() - clockAnchor.local : Date.now();
+
+function requestAge(sent) {
+  if (!sent) return Infinity;
+  const elapsed = mono() - sent.local, wallElapsed = Date.now() - sent.wall;
+  return elapsed < 0 || wallElapsed < 0 ? Infinity : Math.max(elapsed, wallElapsed);
+}
+function clockDiscontinuity() {
+  return clockAnchor && Math.abs((Date.now() - clockAnchor.wall) - (mono() - clockAnchor.local)) > 1000;
+}
+function verifyCurrentState() {
+  const pending = [...requests.values()].some(sent => requestAge(sent) <= MAX_SYNC_AGE_MS);
+  // A wake-up never paints the old local copy first. Keep one current request
+  // when OBS emits visibility and activity events together.
+  if (confirmed || clockAnchor || !pending) {
+    confirmed = false;
+    clockAnchor = null;
+    requests.clear();
+    hide();
+  }
+  if (!loaded) return;
+  if (!socket || [WebSocket.CLOSED, WebSocket.CLOSING].includes(socket.readyState)) connect();
+  else if (![...requests.values()].some(sent => requestAge(sent) <= MAX_SYNC_AGE_MS)) requestSync(true);
+}
 
 function prepareFonts() {
   if (fontsReady) return;
@@ -102,6 +126,7 @@ function createOutcome(outcome, index, animate) {
 
 function render() {
   clearTimeout(tickTimer);
+  if (clockDiscontinuity()) { verifyCurrentState(); return; }
   if (!snapshot || !confirmed || !fontsReady) { hide(); return; }
   const now = serverNow();
   const view = viewAt(snapshot, now);
@@ -267,27 +292,32 @@ function receive(raw, activeSocket) {
   let next;
   try { next = validateSnapshot(raw, CHANNEL); } catch (error) { warn(error.message); requestSync(); return; }
   lastMessage = mono();
+  if (clockDiscontinuity()) { verifyCurrentState(); return; }
   if (snapshot?.epoch === next.epoch && next.revision < snapshot.revision) return;
   if (retiredEpochs.has(next.epoch)) return;
-  // The first visible state must be verified by the bridge during this session.
-  // Storage provides a shared candidate, never authority to resurrect a result.
+  const sent = requests.get(next.request_id);
+  const age = requestAge(sent);
+  if (sent) {
+    requests.delete(next.request_id);
+    if (age > MAX_SYNC_AGE_MS) {
+      if (!clockAnchor) verifyCurrentState();
+      return;
+    }
+  }
+  // Only a recent correlated round trip can establish the first server clock,
+  // including after waking. An old queued ready packet cannot do that.
+  if (!clockAnchor && !sent) { requestSync(); return; }
+  const measuredServer = Date.parse(next.server_now) + (sent ? age / 2 : 0);
+  const estimatedServer = clockAnchor ? Math.max(serverNow(), measuredServer) : measuredServer;
+  clockAnchor = { server: estimatedServer, local: mono(), wall: Date.now() };
+  // A syncing response verifies time, but never authorizes the persisted state.
+  // A later ready broadcast can then use that verified clock without delay.
   if (next.sync.status === "syncing" || (!confirmed && next.sync.status !== "ready")) return;
   if (snapshot && snapshot.epoch !== next.epoch) {
     if (next.sync.status !== "ready") return;
     retiredEpochs.add(snapshot.epoch);
     if (retiredEpochs.size > 8) retiredEpochs.delete(retiredEpochs.values().next().value);
   }
-  let latency = 0;
-  const sent = requests.get(next.request_id);
-  if (sent !== undefined) {
-    const rtt = mono() - sent;
-    requests.delete(next.request_id);
-    if (rtt >= 0 && rtt <= 10000) latency = rtt / 2;
-  }
-  const measuredServer = Date.parse(next.server_now) + latency;
-  // Replayed server_now must never rewind the renderer and resurrect an expired result.
-  const estimatedServer = clockAnchor && snapshot?.epoch === next.epoch ? Math.max(serverNow(), measuredServer) : measuredServer;
-  clockAnchor = { server: estimatedServer, local: mono() };
   const previous = snapshot;
   snapshot = next;
   confirmed = true;
@@ -300,7 +330,7 @@ function receive(raw, activeSocket) {
 function requestSync(force = false) {
   if (!socket || socket.readyState !== WebSocket.OPEN || (!force && mono() - lastSync < 5000)) return;
   const requestId = (typeof crypto.randomUUID === "function" ? crypto.randomUUID() : String(Date.now()) + Math.random());
-  requests.set(requestId, mono());
+  requests.set(requestId, { local: mono(), wall: Date.now() });
   if (requests.size > 8) requests.delete(requests.keys().next().value);
   lastSync = mono();
   socket.send(JSON.stringify({ type: "bridge.sync", protocol_version: 2, request_id: requestId, known_epoch: snapshot?.epoch || cacheCandidate?.epoch || null, known_revision: snapshot?.revision ?? cacheCandidate?.revision ?? null }));
@@ -319,7 +349,7 @@ function connect() {
     if (activeSocket !== socket || activeGeneration !== generation) return;
     lastMessage = mono();
     lastSync = -Infinity;
-    requestSync(true);
+    verifyCurrentState();
   });
   activeSocket.addEventListener("message", (event) => {
     if (activeSocket !== socket || activeGeneration !== generation) return;
@@ -394,22 +424,20 @@ window.addEventListener("onEventReceived", (event) => {
   // Never echo a KV event back to storage or let it override a confirmed server revision.
 });
 function wake() {
-  render();
-  if (!loaded) return;
-  if (!socket || socket.readyState === WebSocket.CLOSED) connect();
-  else requestSync(true);
+  verifyCurrentState();
 }
 window.addEventListener("pageshow", wake);
 window.addEventListener("online", wake);
-window.addEventListener("obsSourceVisibleChanged", wake);
-window.addEventListener("obsSourceActiveChanged", wake);
+window.addEventListener("obsSourceVisibleChanged", event => event.detail?.visible === false ? render() : wake());
+window.addEventListener("obsSourceActiveChanged", event => event.detail?.active === false ? render() : wake());
 window.addEventListener("resize", render);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) wake(); });
 setInterval(() => {
   if (!loaded) return;
   if (socket?.readyState === WebSocket.OPEN && mono() - lastMessage > 70000) {
     try { socket.close(1000, "heartbeat_timeout"); } catch {}
-  } else if (socket?.readyState === WebSocket.OPEN && mono() - lastSync > 30000) requestSync();
+  } else if (socket?.readyState === WebSocket.OPEN && !confirmed && ![...requests.values()].some(sent => requestAge(sent) <= MAX_SYNC_AGE_MS)) requestSync(true);
+  else if (socket?.readyState === WebSocket.OPEN && confirmed && mono() - lastSync >= 30000) requestSync();
   else if (socket?.readyState === WebSocket.CONNECTING && mono() - lastMessage > 15000) {
     try { socket.close(); } catch {}
   }
