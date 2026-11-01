@@ -176,8 +176,10 @@ function render() {
     // This is a presentation fallback; unknown counters stay null in state/storage.
     node.querySelector(".progress-bar-percent-text").textContent = Math.round(percents[index]) + "%";
     node.querySelector(".progress-bar-users-text").lastChild.textContent = " " + (outcome.users === null ? view.phase === "active" ? "0" : "…" : outcome.users.toLocaleString("en-US"));
-    const multiplier = total > 0 && outcome.channel_points > 0 ? total / outcome.channel_points : null;
-    node.querySelector(".multiplier-text").textContent = "x" + (multiplier === null ? "1.0" : multiplier.toFixed(1));
+    // Visual odds follow the percentage, including the initial equal split.
+    // A 1% floor gives empty/tiny outcomes a finite, attractive x100 ceiling.
+    const multiplier = 100 / Math.max(1, percents[index]);
+    node.querySelector(".multiplier-text").textContent = "x" + multiplier.toFixed(1);
     // Keep the original 45px offset for normal values, and reserve more room
     // only when a long multiplier would collide with the user metric.
     const multiplierWidth = node.querySelector(".progress-bar-multiplier").offsetWidth;
