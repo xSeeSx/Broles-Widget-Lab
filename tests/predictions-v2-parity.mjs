@@ -153,7 +153,8 @@ try {
   await page.locator("#predictionResolveWinnerButton").click();
   await check(async () => !(await inspect(page)).hidden && (await inspect(page)).phase === "resolved", "late result returns after lock exit");
   await check(async () => (await inspect(page)).nodes[1].width > 959, "late result winner animates", 7500);
-  await check(async () => (await inspect(page)).hidden, "late result still cleans up", 6000);
+  const lateResultDeadline = (await inspect(page)).deadline;
+  await check(async () => (await inspect(page)).hidden, "late result still cleans up", Math.max(0, lateResultDeadline - Date.now()) + 1500);
   console.log("PASS parity lock-only exit and result after hidden lock");
 
   // Controlled bridge inputs witness elapsed animation poses without replaying a whole sequence.
