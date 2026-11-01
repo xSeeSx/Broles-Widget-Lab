@@ -22,7 +22,14 @@ async function pageForTest() {
   await context.addInitScript(() => {
     window.__RECOVERY_SHOWS__ = 0;
     new MutationObserver(records => {
-      for (const record of records) if (record.target.classList?.contains("prediction-overlay") && record.oldValue !== null) window.__RECOVERY_SHOWS__++;
+      records.forEach((record, index) => {
+        if (!record.target.classList?.contains("prediction-overlay")) return;
+        // Reassigning hidden=true also produces a mutation. Reconstruct each
+        // intermediate value, so only actual removals count as an appearance.
+        const following = records.slice(index + 1).find(next => next.target === record.target);
+        const after = following ? following.oldValue : record.target.getAttribute("hidden");
+        if (record.oldValue !== null && after === null) window.__RECOVERY_SHOWS__++;
+      });
     }).observe(document, { subtree: true, attributes: true, attributeFilter: ["hidden"], attributeOldValue: true });
   });
   const page = await context.newPage(); page.on("pageerror", error => errors.push(error.message)); return page;
