@@ -89,7 +89,7 @@ try {
   await enter([1, 0], [10000, 0]);
   await page.locator("#predictionNormalProgressButton").click();
   await check(async () => JSON.stringify((await geometry()).children.map(item => [item.users, item.percent, item.multiplier])) ===
-    '[["1","100%","x1.0"],["0","0%","x100.0"]]', "10k against zero shows visual x1/x100 and keeps actual users");
+    '[["1","100%","x1.0"],["0","0%","x10.0"]]', "10k against zero shows visual x1/x10 and keeps actual users");
   await page.screenshot({ path: "test-results/v2-visual-zero-percent-odds.png" });
   await enter([1, 1], [10000, 10000]);
   await page.locator("#predictionNormalProgressButton").click();

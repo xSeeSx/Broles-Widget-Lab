@@ -135,7 +135,7 @@ try {
     const state = await inspect(page);
     assert(state.nodes.every((node) => node.left >= -1 && node.left + node.width <= state.width + 1), `Extreme split fits ${count} options`);
     assert(state.nodes.every((node) => node.usersRight <= node.multiplierLeft + 1), `Metrics cannot overlap with large multipliers (${count} options)`);
-    assert(state.nodes.every((node, index) => node.multiplier === (index === 1 ? "x1.0" : "x100.0")), `Visual multipliers cap zero and sub-1% shares at x100 (${count} options)`);
+    assert(state.nodes.every((node, index) => node.multiplier === (index === 1 ? "x1.0" : "x10.0")), `Visual multipliers cap zero and sub-10% shares at x10 (${count} options)`);
     await page.screenshot({ path: `test-results/parity/${count}-extreme-split.png` });
     await page.locator("#predictionEndCanceledButton").click();
     await check(async () => (await inspect(page)).phase === "canceled", "cancel before next layout case");
