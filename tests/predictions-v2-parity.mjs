@@ -88,11 +88,11 @@ try {
         return node.width > test.baseWidth + 3 && node.width < state.width - 3;
       }, `${count} options: winner moves through intermediate widths`, 4000);
       const expansionAge = Date.now() - test.endedAt;
-      assert(expansionAge >= POLICY.expandWinnerAtMs - 100 && expansionAge < POLICY.expandWinnerAtMs + 500, `${count} options: winner expansion retains original timing (${expansionAge}ms)`);
+      assert(expansionAge >= 3950 && expansionAge < 4300, `${count} options: winner expansion overlaps the last 250ms of the fade (${expansionAge}ms)`);
       if (round === 2) await page.screenshot({ path: `test-results/parity/${count}-winner-last-expanding.png` });
       await check(async () => {
         const state = await inspect(page), node = state.nodes[winner];
-        return Math.abs(node.width - state.width) < .01 && Math.abs(node.left) < .01 && state.nodes.every((item, index) => index === winner || item.opacity < .001);
+        return Date.now() - test.endedAt >= 5050 && Math.abs(node.width - state.width) < .01 && Math.abs(node.left) < .01 && state.nodes.every((item, index) => index === winner || item.opacity < .001);
       }, `${count} options: selected winner fully expands`, 2500);
       // A source reloaded after expansion must resume that pose with the same deadline.
       if (count === 5) {
@@ -108,7 +108,7 @@ try {
         }, "reloaded winner resumes at full width");
         assert.equal((await inspect(page)).deadline, test.deadline);
       }
-      await check(async () => (await inspect(page)).overlayAnimation === "fadeOut", `${count} options: original overlay exit`, 5000);
+      await check(async () => (await inspect(page)).overlayAnimation === "fadeOut", `${count} options: original overlay exit`, 6500);
       const exit = await inspect(page);
       assert.equal(exit.barsAnimation, "slideOut", "Original separate bar exit is preserved");
       await check(async () => (await inspect(page)).hidden, `${count} options: title and bars clean up`, 1800);
@@ -157,7 +157,7 @@ try {
   console.log("PASS parity lock-only exit and result after hidden lock");
 
   // Controlled bridge inputs witness elapsed animation poses without replaying a whole sequence.
-  await Promise.all([3800, 5800, 6800, 10750, 12000].map(async (age, index) => {
+  await Promise.all([3800, 4350, 6800, 10750, 12000].map(async (age, index) => {
     const late = await newTestPage(); late.on("pageerror", (error) => errors.push(error.message));
     if (age === 6800) {
       const css = await readFile("widgets/prediccion-v2/widget.css", "utf8");
@@ -184,7 +184,7 @@ try {
     const count = await frame(late).locator("body").evaluate((_node, value) => window.__LAB_WORKER_MOCK__.broadcast(value, { recordPrediction: false }), snapshot);
     assert.equal(count, 1, "The controlled snapshot must actually reach the socket");
     if (age === 3800) await check(async () => { const s = await inspect(late); return s.nodes.length === 2 && s.nodes[0].opacity > .01 && s.nodes[0].opacity < .99; }, "late loser resumes midway", 500);
-    if (age === 5800) await check(async () => { const s = await inspect(late); return s.nodes.length === 2 && s.nodes[1].width > 490 && s.nodes[1].width < 950; }, "late winner resumes midway", 500);
+    if (age === 4350) await check(async () => { const s = await inspect(late); return s.nodes.length === 2 && s.nodes[1].width > 490 && s.nodes[1].width < 950; }, "late winner resumes midway", 500);
     if (age === 6800) {
       await check(async () => { const s = await inspect(late); return s.nodes.length === 2 && s.nodes[1].width > 959 && s.nodes[0].opacity < .001; }, "static winner pose works without CSS motion");
       await check(async () => (await inspect(late)).hidden, "cleanup works without CSS motion or animation events", 6000);

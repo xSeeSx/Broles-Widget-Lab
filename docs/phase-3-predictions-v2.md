@@ -31,7 +31,7 @@ Las transiciones se guardan inmediatamente; progress se agrupa durante un segund
 
 El reloj usa server_now y una estimación mediante solicitud/respuesta, apoyada en performance.now. Su precisión depende de la latencia y la asimetría de la red. Se compara siempre con fechas absolutas: el bloqueo inicia su salida a los quince segundos y se limpia a los 15,7; el resultado inicia su salida a los 10,5 y se limpia a los 11,2. Una recarga a los ocho segundos del resultado deja unos 3,2 segundos de su secuencia original, sin reiniciarla.
 
-El render vuelve a comprobar el plazo al recibir estado, al recuperar visibilidad y mediante su temporizador independiente. Tras la entrada original de medio segundo, a los 3,5 segundos del resultado empiezan a desaparecer las barras perdedoras y a los 5,5 se amplía la ganadora. A los 10,5 se conservan la salida de las barras con slideOut y el fadeOut del conjunto. Al llegar al plazo se fuerzan hidden, título vacío y eliminación de barras. No depende de animationend ni de clones creados previamente durante lock. Un resultado cancelado no muestra trofeos.
+El render vuelve a comprobar el plazo al recibir estado, al recuperar visibilidad y mediante su temporizador independiente. Tras la entrada original de medio segundo, a los 3,5 segundos del resultado empiezan a desaparecer las barras perdedoras y a los 4,05 se amplía la ganadora durante un segundo, con ease-in-out y un rebote suave, solapando los últimos 250 ms del fundido. A los 10,5 se conservan la salida de las barras con slideOut y el fadeOut del conjunto. Al llegar al plazo se fuerzan hidden, título vacío y eliminación de barras. No depende de animationend ni de clones creados previamente durante lock. Un resultado cancelado no muestra trofeos.
 
 ## Comprobaciones
 
@@ -55,7 +55,7 @@ La revisión final debe hacerse en una fuente Navegador de OBS real: fuente viva
 
 ## Regresiones visuales y controles
 
-Se ha restaurado el CSS original, la estructura de métricas con iconos, la entrada escalonada de barras y los STOP en ambos extremos. El resultado reinicia su entrada una sola vez incluso si llega directamente desde active. Las barras existentes se fijan en su posición al resolver; la perdedora se desvanece a los 3,5 segundos y la ganadora se desplaza y amplía a los 5,5, aunque no haya habido lock. El plazo absoluto sigue limpiando el DOM sin depender de animationend. Los porcentajes iniciales vuelven al reparto equitativo y el cálculo del ancho conserva las proporciones reales salvo el mínimo necesario para leer opciones pequeñas.
+Se ha restaurado el CSS original, la estructura de métricas con iconos, la entrada escalonada de barras y los STOP en ambos extremos. El resultado reinicia su entrada una sola vez incluso si llega directamente desde active. Las barras existentes se fijan en su posición al resolver; la perdedora se desvanece a los 3,5 segundos y la ganadora se desplaza y amplía a los 4,05, aunque no haya habido lock. El plazo absoluto sigue limpiando el DOM sin depender de animationend. Los porcentajes iniciales vuelven al reparto equitativo y el cálculo del ancho conserva las proporciones reales salvo el mínimo necesario para leer opciones pequeñas.
 
 El laboratorio incluye **Empate exacto de puntos**. Begin limpia la selección del resultado; Resolver exige elegirlo expresamente. Un reparto igualado no determina el resultado de Twitch ni provoca por sí solo una victoria o cancelación.
 
