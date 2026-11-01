@@ -25,7 +25,8 @@ const enter = async (users, points) => {
 const geometry = () => frame().locator(".prediction-children").evaluate((container) => ({
   width: container.clientWidth,
   children: [...container.children].map((node) => ({ left: node.offsetLeft, top: node.offsetTop, width: node.getBoundingClientRect().width, opacity: Number(getComputedStyle(node).opacity),
-    percent: node.querySelector(".progress-bar-percent-text").textContent, users: node.querySelector(".progress-bar-users-text").textContent.trim() }))
+    percent: node.querySelector(".progress-bar-percent-text").textContent, users: node.querySelector(".progress-bar-users-text").textContent.trim(),
+    multiplier: node.querySelector(".multiplier-text").textContent }))
 }));
 try {
   await page.goto("http://127.0.0.1:4173/?widget=prediccion-v2", { waitUntil: "networkidle" });
@@ -33,6 +34,7 @@ try {
   await page.locator("#predictionBeginNormalButton").click();
   await check(async () => await root().isVisible(), "begin");
   assert.deepEqual(await values(), ["50%", "50%"], "Initial percentages retain the equal split");
+  assert.deepEqual((await geometry()).children.map(item => item.multiplier), ["x2.0", "x2.0"], "Initial visual multipliers match the 50/50 split");
   assert.equal(await page.locator("#predictionWinningOutcome").inputValue(), "");
   assert(await page.locator("#predictionResolveWinnerButton").isDisabled(), "No automatic result choice");
   await page.waitForTimeout(1600);
@@ -84,6 +86,15 @@ try {
   await reference.close();
 
   // Use the real numeric fields. Never substitute an internal state assignment.
+  await enter([1, 0], [10000, 0]);
+  await page.locator("#predictionNormalProgressButton").click();
+  await check(async () => JSON.stringify((await geometry()).children.map(item => [item.users, item.percent, item.multiplier])) ===
+    '[["1","100%","x1.0"],["0","0%","x100.0"]]', "10k against zero shows visual x1/x100 and keeps actual users");
+  await page.screenshot({ path: "test-results/v2-visual-zero-percent-odds.png" });
+  await enter([1, 1], [10000, 10000]);
+  await page.locator("#predictionNormalProgressButton").click();
+  await check(async () => JSON.stringify((await geometry()).children.map(item => item.multiplier)) === '["x2.0","x2.0"]',
+    "visual odds update from zero percent to an even split");
   await enter([25, 75], [10000, 30000]);
   await page.locator("#predictionNormalProgressButton").click();
   await check(async () => JSON.stringify(await values()) === '["25%","75%"]', "manual points reach the percentage labels");
@@ -91,6 +102,7 @@ try {
     const data = await geometry(); return Math.abs(data.children[0].width / (data.children[0].width + data.children[1].width) - .25) < .015;
   }, "manual 25/75 also reaches bar geometry");
   assert.deepEqual((await geometry()).children.map((item) => item.users), ["25", "75"]);
+  assert.deepEqual((await geometry()).children.map((item) => item.multiplier), ["x4.0", "x1.3"]);
   // Progress writes are debounced; the eventual store must contain exactly the edited totals.
   await check(async () => frame().locator("body").evaluate(async () => {
     const saved = await window.SE_API.store.get("brolesPredictions133649243v2");

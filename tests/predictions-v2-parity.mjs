@@ -52,7 +52,7 @@ try {
       await check(async () => (await inspect(page)).phase === "active" && (await inspect(page)).nodes.length === count, "begin all options");
       assert.equal(await page.locator("#predictionWinningOutcome").inputValue(), "");
       const initial = await inspect(page);
-      assert(initial.nodes.every((node) => node.percent === Math.round(100 / count) + "%" && node.users === "0" && node.multiplier === "x1.0"));
+      assert(initial.nodes.every((node) => node.percent === Math.round(100 / count) + "%" && node.users === "0" && node.multiplier === "x" + count.toFixed(1)));
       for (let index = 0; index < count; index++) assert.equal(initial.nodes[index].color, ["rgb(255, 187, 0)", "rgb(15, 99, 255)", "rgb(255, 0, 0)"][index % 3]);
       await page.locator("#predictionVotePattern").selectOption(round === 1 ? "all-option-1" : "equal");
       await page.locator("#predictionApplyVotePatternButton").click();
@@ -135,6 +135,7 @@ try {
     const state = await inspect(page);
     assert(state.nodes.every((node) => node.left >= -1 && node.left + node.width <= state.width + 1), `Extreme split fits ${count} options`);
     assert(state.nodes.every((node) => node.usersRight <= node.multiplierLeft + 1), `Metrics cannot overlap with large multipliers (${count} options)`);
+    assert(state.nodes.every((node, index) => node.multiplier === (index === 1 ? "x1.0" : "x100.0")), `Visual multipliers cap zero and sub-1% shares at x100 (${count} options)`);
     await page.screenshot({ path: `test-results/parity/${count}-extreme-split.png` });
     await page.locator("#predictionEndCanceledButton").click();
     await check(async () => (await inspect(page)).phase === "canceled", "cancel before next layout case");
