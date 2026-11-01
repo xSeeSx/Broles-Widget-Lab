@@ -1,6 +1,6 @@
 # Conservación visual del widget original
 
-El objetivo de la versión 2.0.5 es conservar las funciones visuales de `widgets/prediccion` y reparar la recepción y recuperación del estado. Esos archivos originales permanecen intactos. La versión nueva utiliza su CSS, estructura de métricas y animaciones; cambia cómo reconstruye y limpia el estado.
+El objetivo de la versión 2.0.6 es conservar las funciones visuales de `widgets/prediccion` y reparar la recepción y recuperación del estado. Esos archivos originales permanecen intactos. La versión nueva utiliza su CSS, estructura de métricas y animaciones; cambia cómo reconstruye y limpia el estado.
 
 | Función original | Comportamiento que debe conservar v2 | Comprobación |
 | --- | --- | --- |
@@ -44,4 +44,4 @@ Estas pruebas usan Chromium. Una revisión en una fuente Navegador de OBS real s
 
 `tests/predictions-v2-clock.mjs` comprueba cambios de dígito, fase del latido, incorporaciones tardías y recuperación tras una pausa del hilo. El render se agenda también en el próximo límite absoluto de segundo, y el latido conserva su amplitud original con periodo de 1 s.
 
-Desde 2.0.5, el multiplicador es un efecto visual solicitado por el usuario: `100 / max(1, porcentaje)`. Un reparto inicial 50/50 muestra x2/x2 y uno 100/0 muestra x1/x100. El máximo visual es x100, también para porcentajes inferiores al 1%. No se altera ningún contador de usuarios, puntos o dato enviado a Twitch; el cálculo solo afecta al texto del widget.
+Desde 2.0.6, el multiplicador es un efecto visual solicitado por el usuario: `100 / max(10, porcentaje)`. Un reparto inicial 50/50 muestra x2/x2 y uno 100/0 muestra x1/x10. El máximo visual es x10, también para porcentajes inferiores al 10%. No se altera ningún contador de usuarios, puntos o dato enviado a Twitch; el cálculo solo afecta al texto del widget.

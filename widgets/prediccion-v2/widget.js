@@ -328,8 +328,8 @@ function render() {
     node.querySelector(".progress-bar-percent-text").textContent = Math.round(percents[index]) + "%";
     node.querySelector(".progress-bar-users-text").lastChild.textContent = " " + (outcome.users === null ? view.phase === "active" ? "0" : "…" : outcome.users.toLocaleString("en-US"));
     // Visual odds follow the percentage, including the initial equal split.
-    // A 1% floor gives empty/tiny outcomes a finite, attractive x100 ceiling.
-    const multiplier = 100 / Math.max(1, percents[index]);
+    // A 10% floor keeps empty/tiny outcomes at a restrained x10 ceiling.
+    const multiplier = 100 / Math.max(10, percents[index]);
     node.querySelector(".multiplier-text").textContent = "x" + multiplier.toFixed(1);
     // Keep the original 45px offset for normal values, and reserve more room
     // only when a long multiplier would collide with the user metric.

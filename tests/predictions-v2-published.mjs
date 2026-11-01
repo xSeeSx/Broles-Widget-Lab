@@ -23,11 +23,11 @@ const percentages = () => a().locator(".progress-bar-percent-text").allTextConte
 try {
   await page.goto(base.href, { waitUntil: "networkidle" });
   // A successful Pages deployment is insufficient if the browser serves an older entry module.
-  assert((await page.locator('script[type="module"]').getAttribute("src")).includes("visual-parity-2.0.5"), "The published HTML must request the corrected entry module");
+  assert((await page.locator('script[type="module"]').getAttribute("src")).includes("visual-parity-2.0.6"), "The published HTML must request the corrected entry module");
   await check(async () => await page.locator("#workerConnectionCount").textContent() === "1", "mock socket ready");
   assert.equal(await page.locator("#predictionWinningOutcome").inputValue(), "");
   assert(await page.locator("#predictionResolveWinnerButton").isDisabled());
-  assert((await page.locator("#logList").textContent()).includes('"version": "2.0.5"'), "The loaded widget manifest must identify the corrected release");
+  assert((await page.locator("#logList").textContent()).includes('"version": "2.0.6"'), "The loaded widget manifest must identify the corrected release");
   await page.locator("#predictionBeginNormalButton").click();
   await check(async () => await root().isVisible(), "prediction starts");
   assert.deepEqual(await percentages(), ["50%", "50%"]);
@@ -47,8 +47,8 @@ try {
     await field(index, "channelPoints").fill(String(points));
   }
   await page.locator("#predictionNormalProgressButton").click();
-  await check(async () => JSON.stringify(await a().locator(".multiplier-text").allTextContents()) === '["x1.0","x100.0"]',
-    "zero percent has visual x100 potential");
+  await check(async () => JSON.stringify(await a().locator(".multiplier-text").allTextContents()) === '["x1.0","x10.0"]',
+    "zero percent has visual x10 potential");
   assert.deepEqual((await a().locator(".progress-bar-users-text").allTextContents()).map(value => value.trim()), ["1", "0"]);
   for (const [index, users, points] of [[0, 25, 10000], [1, 75, 30000]]) {
     await field(index, "users").fill(String(users));
@@ -83,7 +83,7 @@ try {
   await page.screenshot({ path: "test-results/published/scene-switch-cleared.png" });
   assert.deepEqual(errors, []);
   await writeFile("test-results/published/report.json", JSON.stringify({ status: "passed", url: page.url(), commit: process.env.GITHUB_SHA || null,
-    version: "2.0.5", checks: ["versioned entry module", "original fonts loaded before display", "initial percentages and metrics", "manual 25/75 votes", "direct result and selected winner", "absolute cleanup", "scene switch after missed result"], errors }, null, 2));
+    version: "2.0.6", checks: ["versioned entry module", "original fonts loaded before display", "initial percentages and metrics", "manual 25/75 votes", "direct result and selected winner", "absolute cleanup", "scene switch after missed result"], errors }, null, 2));
   console.log("Published prediction smoke checks passed.");
 } catch (error) {
   await page.screenshot({ path: "test-results/published/failure.png" }).catch(() => {});
