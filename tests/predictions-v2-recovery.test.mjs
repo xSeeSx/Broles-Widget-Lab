@@ -145,6 +145,12 @@ test("a missing first reply is retried and does not leave the source hidden fore
   assert.notEqual(f.request(), firstRequest);
   f.reply("active"); assert(!f.hidden());
 });
+test("first verification also retries when the monotonic clock remains paused", () => {
+  const f = fixture(), firstRequest = f.request();
+  f.advance(60000, { freezeMono: true }); f.runIntervals();
+  assert.notEqual(f.request(), firstRequest);
+  f.reply("active"); assert(!f.hidden());
+});
 test("an obsolete slow reply cannot blank a state already verified by a newer reply", () => {
   const f = fixture(); f.reply("active");
   f.api.requestSync(true); const oldRequest = f.request();

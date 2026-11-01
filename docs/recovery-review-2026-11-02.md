@@ -21,9 +21,9 @@ El Worker revisado ya devuelve la hora actual en cada snapshot y conserva `reque
 
 ## Pruebas reproducibles
 
-`node --test tests/predictions-v2-recovery.test.mjs` ejecuta el cliente completo con DOM y relojes controlados. Los 12 casos cubren primer paquete atrasado, respuesta en cola con reloj detenido, retorno tras perderse el final, suspensión, limpieza sin conexión ni eventos CSS, conservación del plazo, caché sin autoridad, eventos OBS duplicados, respuesta inicial syncing, reintento, respuesta obsoleta y cancelación caducada.
+`node --test tests/predictions-v2-recovery.test.mjs` ejecuta el cliente completo con DOM y relojes controlados. Los 13 casos cubren primer paquete atrasado, respuesta en cola con reloj detenido, retorno tras perderse el final, suspensión, limpieza sin conexión ni eventos CSS, conservación del plazo, caché sin autoridad, eventos OBS duplicados, respuesta inicial syncing, reintento con ambos relojes y con el monotónico detenido, respuesta obsoleta y cancelación caducada.
 
-Contra el cliente anterior, seis casos fallan. Para contrastarlo en un checkout de este repositorio:
+Contra el cliente anterior, siete casos fallan. Para contrastarlo en un checkout de este repositorio:
 
 ```bash
 git show e6876e3440ff35a878553293b304710feb9d0b44:src/predictions/client.js > /tmp/broles-client-before-recovery.js

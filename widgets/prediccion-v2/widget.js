@@ -587,7 +587,8 @@ setInterval(() => {
   if (!loaded) return;
   if (socket?.readyState === WebSocket.OPEN && mono() - lastMessage > 70000) {
     try { socket.close(1000, "heartbeat_timeout"); } catch {}
-  } else if (socket?.readyState === WebSocket.OPEN && mono() - lastSync >= (confirmed ? 30000 : MAX_SYNC_AGE_MS)) requestSync();
+  } else if (socket?.readyState === WebSocket.OPEN && !confirmed && ![...requests.values()].some(sent => requestAge(sent) <= MAX_SYNC_AGE_MS)) requestSync(true);
+  else if (socket?.readyState === WebSocket.OPEN && confirmed && mono() - lastSync >= 30000) requestSync();
   else if (socket?.readyState === WebSocket.CONNECTING && mono() - lastMessage > 15000) {
     try { socket.close(); } catch {}
   }
