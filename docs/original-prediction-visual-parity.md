@@ -1,6 +1,6 @@
 # Conservación visual del widget original
 
-El objetivo de la versión 2.0.3 es conservar las funciones visuales de `widgets/prediccion` y reparar la recepción y recuperación del estado. Esos archivos originales permanecen intactos. La versión nueva utiliza su CSS, estructura de métricas y animaciones; cambia cómo reconstruye y limpia el estado.
+El objetivo de la versión 2.0.4 es conservar las funciones visuales de `widgets/prediccion` y reparar la recepción y recuperación del estado. Esos archivos originales permanecen intactos. La versión nueva utiliza su CSS, estructura de métricas y animaciones; cambia cómo reconstruye y limpia el estado.
 
 | Función original | Comportamiento que debe conservar v2 | Comprobación |
 | --- | --- | --- |
@@ -11,11 +11,11 @@ El objetivo de la versión 2.0.3 es conservar las funciones visuales de `widgets
 | Inicio | Reparto equitativo, usuarios iniciales en cero y multiplicador x1.0 | Inspección del widget, sin convertir contadores null del protocolo en ceros persistidos |
 | Votación | Anchos animados con la curva original, proporción por puntos y mínimos legibles | Inputs reales, reparto 25/75 y reparto extremo en todos los números de opciones |
 | Métricas | Usuarios con icono, separador de miles y multiplicador con estrella | Texto, iconos y posición; detectar solapamiento con multiplicadores grandes |
-| Reloj | Cuenta atrás y heartbeat; conserva espacio y desvanece en 0,3 s al cerrar | Opacidad tras bloqueo y clases/animaciones originales |
+| Reloj | Cuenta atrás y un heartbeat por segundo, ambos anclados al cierre absoluto; conserva espacio y desvanece en 0,3 s al cerrar | Fotogramas por segundo, fase tras progress/replay, fuente tardía, pausa y movimiento reducido; opacidad tras bloqueo |
 | Bloqueo | STOP a ambos extremos, barras conservadas y salida tras 15 s | Bloqueo solo, salida y resultado posterior al ocultamiento |
 | Resultado | Trofeos a ambos extremos y nueva entrada, también si llega desde active | Resolución directa y tras lock |
 | Perdedoras | Comienzan a desvanecerse a los 3,5 s, durante 0,8 s | Fotogramas con opacidad intermedia y estado final |
-| Ganadora | Desde 2.0.3, empieza a los 4,05 s, solapando los últimos 250 ms del fundido; dura 1 s con ease-in-out y rebote suave | Ganadoras primera, intermedia y última; 2, 3, 5 y 10 opciones |
+| Ganadora | Desde 2.0.4, empieza a los 4,05 s, solapando los últimos 250 ms del fundido; dura 1 s con ease-in-out y rebote suave | Ganadoras primera, intermedia y última; 2, 3, 5 y 10 opciones |
 | Nombre ganador | Se desplaza al centro con un pulso de escala y brillo durante el mismo segundo de expansión; conserva la pose al recuperar una fuente | Reloj compartido con la barra, escala intermedia y centrado final en la matriz de opciones y sin animaciones |
 | Salida | A los 10,5 s: slideOut de barras de 0,4 s y fadeOut del conjunto de 0,7 s | Ambas animaciones activas y limpieza física a los 11,2 s |
 | Fuente recuperada | Retoma la pose de la fase ya transcurrida; no repite la secuencia | Snapshots consumidos a mitad de fade, expansión, salida y después de caducar |
@@ -41,3 +41,5 @@ El objetivo de la versión 2.0.3 es conservar las funciones visuales de `widgets
 Las pruebas de recuperación y estrés existentes se ejecutan después de esas comprobaciones. El repo independiente del puente comprueba también los límites temporales y la persistencia. La política compartida está identificada por commit y hash en `src/predictions/source.json`.
 
 Estas pruebas usan Chromium. Una revisión en una fuente Navegador de OBS real sigue siendo necesaria para acreditar su renderizado y la configuración de StreamElements/Twitch desplegada; el laboratorio no emula el CEF de OBS.
+
+`tests/predictions-v2-clock.mjs` comprueba cambios de dígito, fase del latido, incorporaciones tardías y recuperación tras una pausa del hilo. El render se agenda también en el próximo límite absoluto de segundo, y el latido conserva su amplitud original con periodo de 1 s.
