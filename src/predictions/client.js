@@ -2,6 +2,9 @@
 const DEFAULT_URL = "wss://losbroles.lessergio.workers.dev/ws/v2?broadcaster_id=133649243";
 const CHANNEL = "133649243";
 const STORE_KEY = "brolesPredictions133649243v2";
+// Local choreography, independent of the bridge protocol and absolute expiry.
+const RESULT_MOTION = Object.freeze({ fadeMs: 800, overlapMs: 250, expandMs: 1000 });
+const winnerStartsAtMs = POLICY.fadeLosersAtMs + RESULT_MOTION.fadeMs - RESULT_MOTION.overlapMs;
 const overlay = document.querySelector(".prediction-overlay");
 const children = document.querySelector(".prediction-children");
 const title = document.querySelector(".prediction-title-text");
@@ -193,17 +196,17 @@ function render() {
     for (const outcome of prediction.outcomes) {
       const node = nodes.get(outcome.id);
       const losing = outcome.id !== prediction.winning_outcome_id && view.resultStep >= 1;
-      const winning = outcome.id === prediction.winning_outcome_id && view.resultStep >= 2;
+      const winning = outcome.id === prediction.winning_outcome_id && age >= winnerStartsAtMs;
       // Set the negative delay only when entering the phase. Replays keep the
       // same CSS animation; a late source resumes its elapsed pose without flashing.
       if (losing && !node.classList.contains("is-loser")) node.style.setProperty("--loser-delay", -Math.max(0, age - POLICY.fadeLosersAtMs) + "ms");
-      if (winning && !node.classList.contains("is-winner")) node.style.setProperty("--winner-delay", -Math.max(0, age - POLICY.expandWinnerAtMs) + "ms");
+      if (winning && !node.classList.contains("is-winner")) node.style.setProperty("--winner-delay", -Math.max(0, age - winnerStartsAtMs) + "ms");
       node.classList.toggle("is-loser", losing);
       node.classList.toggle("is-winner", winning);
       // Keep a static final pose as well: frame loss or unavailable CSS motion
       // must not prevent the right winner or the hard cleanup from being shown.
-      node.style.opacity = losing && age >= POLICY.fadeLosersAtMs + 800 ? "0" : "";
-      if (winning && age >= POLICY.expandWinnerAtMs + 1000) {
+      node.style.opacity = losing && age >= POLICY.fadeLosersAtMs + RESULT_MOTION.fadeMs ? "0" : "";
+      if (winning && age >= winnerStartsAtMs + RESULT_MOTION.expandMs) {
         node.style.left = "0px";
         node.style.width = children.clientWidth + "px";
       }
@@ -212,7 +215,7 @@ function render() {
   // This timer belongs to the renderer, never to a particular socket or CSS animation.
   // Wake exactly at sequence boundaries as well as the hard cleanup deadline.
   const boundaries = view.hideAt ? [view.hideAt - POLICY.exitMs, view.hideAt] : [];
-  if (view.phase === "resolved") boundaries.push(...[POLICY.fadeLosersAtMs, POLICY.fadeLosersAtMs + 800, POLICY.expandWinnerAtMs, POLICY.expandWinnerAtMs + 1000].map((offset) => Date.parse(prediction.ended_at) + offset));
+  if (view.phase === "resolved") boundaries.push(...[POLICY.fadeLosersAtMs, POLICY.fadeLosersAtMs + RESULT_MOTION.fadeMs, winnerStartsAtMs, winnerStartsAtMs + RESULT_MOTION.expandMs].map((offset) => Date.parse(prediction.ended_at) + offset));
   const nextBoundary = Math.min(...boundaries.filter((time) => time > now));
   tickTimer = setTimeout(render, Math.max(1, Math.min(250, nextBoundary - now)));
   if (view.phase === "locked" && prediction.status === "active") requestSync();

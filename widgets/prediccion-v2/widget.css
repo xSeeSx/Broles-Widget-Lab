@@ -313,9 +313,14 @@ body { width: min(960px, calc(100vw - 200px)); }
 .slideIn { animation-fill-mode: both; }
 .prediction-overlay[data-phase="resolved"] .prediction-child { transition: left 1s ease, width 1s ease, opacity .8s ease; }
 .prediction-child.is-loser { animation: resultLoser .8s ease both; animation-delay: var(--loser-delay, 0ms); }
-.prediction-child.is-winner { animation: resultWinner 1s ease both; animation-delay: var(--winner-delay, 0ms); }
+.prediction-child.is-winner { animation: resultWinner 1s ease-in-out both; animation-delay: var(--winner-delay, 0ms); }
 @keyframes resultLoser { from { opacity: 1; } to { opacity: 0; } }
-@keyframes resultWinner { from { left: var(--result-left); width: var(--result-width); } to { left: 0; width: 100%; } }
+@keyframes resultWinner {
+  0% { left: var(--result-left); width: var(--result-width); }
+  70% { left: -.75%; width: 101.5%; }
+  85% { left: .2%; width: 99.6%; }
+  100% { left: 0; width: 100%; }
+}
 .prediction-children.slideOut { animation-delay: var(--exit-delay, 0ms); }
 .prediction-overlay.is-exiting { animation: fadeOut .7s ease-in forwards; animation-delay: var(--exit-delay, 0ms) !important; }
 @media (prefers-reduced-motion: reduce) {

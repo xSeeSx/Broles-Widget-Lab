@@ -107,6 +107,23 @@ try {
   assert(await page.locator("#predictionResolveWinnerButton").isDisabled());
 
   // Choose option 2 explicitly and resolve directly during active voting.
+  await frame().locator("body").evaluate(() => {
+    window.resultMotionSamples = [];
+    let start;
+    const sample = () => {
+      const container = document.querySelector(".prediction-children");
+      if (document.querySelector(".prediction-overlay").dataset.phase === "resolved") {
+        start ??= performance.now();
+        const winner = container.querySelector('[data-outcome-id="outcome-2"]');
+        const loser = container.querySelector('[data-outcome-id="outcome-1"]');
+        window.resultMotionSamples.push({ time: performance.now() - start, width: winner.getBoundingClientRect().width,
+          target: container.clientWidth, loserOpacity: Number(getComputedStyle(loser).opacity),
+          animation: getComputedStyle(winner).animationName });
+      }
+      if (start === undefined || performance.now() - start < 5600) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
   await page.locator("#predictionWinningOutcome").selectOption("outcome-2");
   await page.locator("#predictionResolveWinnerButton").click();
   await check(async () => await root().getAttribute("data-phase") === "resolved", "active can resolve directly");
@@ -125,14 +142,24 @@ try {
     const data = await geometry(); return data.children[1].width > before.children[1].width + 10 && data.children[1].width < data.width - 10;
   }, "winner expansion has intermediate frames", 3500);
   await check(async () => {
-    const data = await geometry(); return Math.abs(data.children[1].width - data.width) < 2 && Math.abs(data.children[1].left) < 2 && data.children[0].opacity < .01;
+    const data = await geometry();
+    const settled = await frame().locator('.prediction-child.is-winner').evaluate(node =>
+      node.getAnimations().filter(animation => animation.animationName === "resultWinner").every(animation => animation.playState === "finished"));
+    return settled && Math.abs(data.children[1].width - data.width) < 2 && Math.abs(data.children[1].left) < 2 && data.children[0].opacity < .01;
   }, "option 2 expands fully to the left edge", 2500);
   await page.screenshot({ path: "test-results/v2-visual-winner-expanded.png" });
   const expanded = await geometry();
   await page.waitForTimeout(600);
   assert.deepEqual(await geometry(), expanded, "Periodic renders cannot restart or freeze the final motion");
+  const motionSamples = await frame().locator("body").evaluate(() => window.resultMotionSamples);
+  assert(motionSamples.some(sample => sample.animation === "resultWinner" && sample.loserOpacity > .001 && sample.loserOpacity < .5 && sample.width > before.children[1].width + 1),
+    "Winner expands while the tail of the loser fade is still visible");
+  const peak = motionSamples.findIndex(sample => sample.width > sample.target + 5);
+  assert(peak >= 0, "The winner visibly overshoots its final width");
+  assert(motionSamples.slice(peak + 1).some(sample => sample.width < sample.target - 2), "The bounce returns through the final width before settling");
+  await writeFile("test-results/v2-result-motion.json", JSON.stringify(motionSamples, null, 2));
   assert.equal(Number(await root().getAttribute("data-hide-at")), deadline);
-  await check(async () => await root().evaluate((node) => getComputedStyle(node).animationName === "fadeOut"), "exit animation starts", 4000);
+  await check(async () => await root().evaluate((node) => getComputedStyle(node).animationName === "fadeOut"), "exit animation starts", 5500);
   await page.waitForTimeout(300);
   assert.equal(await frame().locator(".prediction-children").evaluate((node) => getComputedStyle(node).animationName), "slideOut", "Original bar exit is preserved");
   const exitOpacity = await root().evaluate((node) => Number(getComputedStyle(node).opacity));
