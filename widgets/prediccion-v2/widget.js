@@ -213,12 +213,27 @@ function hide() {
   overlay.removeAttribute("data-prediction-id");
   title.textContent = "";
   clock.textContent = "";
+  clock.classList.remove("heartbeat");
   children.replaceChildren();
   nodes.clear();
   children.style.height = "";
   children.classList.remove("slideOut");
   delete children.dataset.frozen;
   lastView = "";
+}
+
+function renderClock(view, prediction, now) {
+  const active = view.phase === "active";
+  clock.classList.toggle("is-inactive", !active);
+  clock.classList.toggle("heartbeat", active);
+  const text = String(Math.floor(view.seconds / 60)).padStart(2, "0") + ":" + String(view.seconds % 60).padStart(2, "0");
+  if (clock.textContent !== text) clock.textContent = text;
+  if (!active) return;
+  // One pulse per countdown second, on the same absolute clock as the digit.
+  // Seeking the existing animation compensates late frames, replay and wake-up
+  // without restarting it or replaying pulses missed while the source was paused.
+  const beat = clock.getAnimations?.().find(animation => animation.animationName === "heartbeat");
+  if (beat) beat.currentTime = ((now - Date.parse(prediction.locks_at)) % 1000 + 1000) % 1000;
 }
 
 function createOutcome(outcome, index, animate) {
@@ -277,8 +292,7 @@ function render() {
   const prefix = view.phase === "resolved" ? "🏆 " : view.phase === "canceled" ? "Cancelada: " : view.phase === "locked" ? "🛑 " : "";
   title.textContent = prefix + prediction.title + (view.phase === "resolved" ? " 🏆" : view.phase === "locked" ? " 🛑" : "");
   // Keep the clock's original space while fading it on lock/end.
-  clock.classList.toggle("is-inactive", view.phase !== "active");
-  clock.textContent = String(Math.floor(view.seconds / 60)).padStart(2, "0") + ":" + String(view.seconds % 60).padStart(2, "0");
+  renderClock(view, prediction, now);
   const known = prediction.outcomes.every((outcome) => outcome.channel_points !== null);
   const total = prediction.outcomes.reduce((sum, outcome) => sum + (outcome.channel_points || 0), 0);
   // Original bars overlap their rectangular bounds by 10px. The slanted
@@ -366,6 +380,7 @@ function render() {
   // This timer belongs to the renderer, never to a particular socket or CSS animation.
   // Wake exactly at sequence boundaries as well as the hard cleanup deadline.
   const boundaries = view.hideAt ? [view.hideAt - POLICY.exitMs, view.hideAt] : [];
+  if (view.phase === "active") boundaries.push(Date.parse(prediction.locks_at) - (view.seconds - 1) * 1000);
   if (view.phase === "resolved") boundaries.push(...[POLICY.fadeLosersAtMs, POLICY.fadeLosersAtMs + RESULT_MOTION.fadeMs, winnerStartsAtMs, winnerStartsAtMs + RESULT_MOTION.expandMs].map((offset) => Date.parse(prediction.ended_at) + offset));
   const nextBoundary = Math.min(...boundaries.filter((time) => time > now));
   tickTimer = setTimeout(render, Math.max(1, Math.min(250, nextBoundary - now)));
