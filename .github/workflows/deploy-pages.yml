@@ -50,10 +50,14 @@ jobs:
       - name: Verify published predictions
         env:
           LAB_BASE_URL: ${{ steps.deployment.outputs.page_url }}
-        run: node tests/predictions-v2-published.mjs
+        run: |
+          node tests/predictions-v2-published.mjs
+          node tests/predictions-v2-recovery-browser.mjs
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: published-prediction-check
-          path: test-results/published/
+          path: |
+            test-results/published/
+            test-results/recovery/
