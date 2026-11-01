@@ -28,6 +28,7 @@ const inspect = (page) => frame(page).locator(".prediction-overlay").evaluate((o
       percent: node.querySelector(".progress-bar-percent-text").textContent, users: node.querySelector(".progress-bar-users-text").textContent.trim(),
       color: getComputedStyle(node.querySelector(".prediction-outcome")).backgroundColor,
       multiplier: node.querySelector(".multiplier-text").textContent,
+      labelCenterError: (() => { const label = node.querySelector(".progress-bar-text").getBoundingClientRect(), bar = node.getBoundingClientRect(); return label.left + label.width / 2 - bar.left - bar.width / 2; })(),
       usersRight: node.querySelector(".progress-bar-users-text").getBoundingClientRect().right,
       multiplierLeft: node.querySelector(".progress-bar-multiplier").getBoundingClientRect().left })) };
 });
@@ -94,6 +95,7 @@ try {
         const state = await inspect(page), node = state.nodes[winner];
         return Date.now() - test.endedAt >= 5050 && Math.abs(node.width - state.width) < .01 && Math.abs(node.left) < .01 && state.nodes.every((item, index) => index === winner || item.opacity < .001);
       }, `${count} options: selected winner fully expands`, 2500);
+      assert(Math.abs((await inspect(page)).nodes[winner].labelCenterError) < .5, `${count} options: winner name finishes centered`);
       // A source reloaded after expansion must resume that pose with the same deadline.
       if (count === 5) {
         const previousDocument = await frame(page).locator("body").evaluate(() => performance.timeOrigin);
@@ -185,9 +187,10 @@ try {
     const count = await frame(late).locator("body").evaluate((_node, value) => window.__LAB_WORKER_MOCK__.broadcast(value, { recordPrediction: false }), snapshot);
     assert.equal(count, 1, "The controlled snapshot must actually reach the socket");
     if (age === 3800) await check(async () => { const s = await inspect(late); return s.nodes.length === 2 && s.nodes[0].opacity > .01 && s.nodes[0].opacity < .99; }, "late loser resumes midway", 500);
-    if (age === 4350) await check(async () => { const s = await inspect(late); return s.nodes.length === 2 && s.nodes[1].width > 490 && s.nodes[1].width < 950; }, "late winner resumes midway", 500);
+    if (age === 4350) await check(async () => { const s = await inspect(late); return s.nodes.length === 2 && s.nodes[1].width > 490 && s.nodes[1].width < 950 && s.nodes[1].labelCenterError < -1; }, "late winner and name resume midway", 500);
     if (age === 6800) {
       await check(async () => { const s = await inspect(late); return s.nodes.length === 2 && s.nodes[1].width > 959 && s.nodes[0].opacity < .001; }, "static winner pose works without CSS motion");
+      assert(Math.abs((await inspect(late)).nodes[1].labelCenterError) < .5, "Without CSS motion the winner name still centers");
       await check(async () => (await inspect(late)).hidden, "cleanup works without CSS motion or animation events", 6000);
     }
     if (age === 10750) {

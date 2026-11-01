@@ -314,12 +314,30 @@ body { width: min(960px, calc(100vw - 200px)); }
 .prediction-overlay[data-phase="resolved"] .prediction-child { transition: left 1s ease, width 1s ease, opacity .8s ease; }
 .prediction-child.is-loser { animation: resultLoser .8s ease both; animation-delay: var(--loser-delay, 0ms); }
 .prediction-child.is-winner { animation: resultWinner 1s ease-in-out both; animation-delay: var(--winner-delay, 0ms); }
+.prediction-child.is-winner .progress-bar-stats { overflow: visible; }
+.prediction-child.is-winner .progress-bar-stats-child { position: relative; overflow: visible; }
+.prediction-child.is-winner .progress-bar-text {
+  position: relative;
+  left: 50%;
+  padding-right: 0;
+  max-width: calc(100% - 32px);
+  transform: translateX(-50%) scale(1.06);
+  transform-origin: center;
+  animation: resultWinnerLabel 1s ease-in-out both;
+  animation-delay: var(--winner-delay, 0ms);
+}
 @keyframes resultLoser { from { opacity: 1; } to { opacity: 0; } }
 @keyframes resultWinner {
   0% { left: var(--result-left); width: var(--result-width); }
   70% { left: -.75%; width: 101.5%; }
   85% { left: .2%; width: 99.6%; }
   100% { left: 0; width: 100%; }
+}
+@keyframes resultWinnerLabel {
+  0% { left: 0; transform: translateX(0) scale(1); text-shadow: #212121 0px 0px 5px; }
+  70% { left: 50%; transform: translateX(-50%) scale(1.15); text-shadow: #212121 0px 0px 5px, rgba(255,255,255,.45) 0px 0px 9px; }
+  85% { left: 50%; transform: translateX(-50%) scale(.98); text-shadow: #212121 0px 0px 5px; }
+  100% { left: 50%; transform: translateX(-50%) scale(1.06); text-shadow: #212121 0px 0px 5px; }
 }
 .prediction-children.slideOut { animation-delay: var(--exit-delay, 0ms); }
 .prediction-overlay.is-exiting { animation: fadeOut .7s ease-in forwards; animation-delay: var(--exit-delay, 0ms) !important; }
@@ -328,6 +346,7 @@ body { width: min(960px, calc(100vw - 200px)); }
   .prediction-child, .prediction-time-text { transition: none !important; }
   .prediction-child.is-loser { animation: none; opacity: 0; }
   .prediction-child.is-winner { animation: none; left: 0 !important; width: 100% !important; }
+  .prediction-child.is-winner .progress-bar-text { animation: none; }
   .prediction-children.slideOut { animation: none; }
   .prediction-overlay.is-exiting { animation: none; opacity: 0; }
 }
