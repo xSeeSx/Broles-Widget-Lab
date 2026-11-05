@@ -1,0 +1,12 @@
+{
+  "repository": "xSeeSx/Broles-Predicciones-Worker",
+  "commit": "2a38b6d376914c314578e9e08490f9b15f5966e4",
+  "paths": {
+    "state": "src/state.mjs",
+    "interactions": "src/interactions.mjs"
+  },
+  "sha256": {
+    "state": "e237dd305d9f6c410eb722c846a7d8eda14400b5d8023eb9a69ddad44aa67c44",
+    "interactions": "543406b085b085ab1581a022013b46214829b2adca68f90ae4376927f86c8fee"
+  }
+}

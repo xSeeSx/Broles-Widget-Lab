@@ -16,9 +16,11 @@ jobs:
       - run: node tests/contracts.mjs
       - run: node --test tests/predictions-v2-recovery.test.mjs
       - run: node scripts/build-predictions.mjs --check
+      - run: node scripts/build-interactions.mjs --check
+      - run: node --test tests/interactions-v3-recovery.test.mjs
   browser-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,6 +41,7 @@ jobs:
           node tests/predictions-v2-browser.mjs
           node tests/predictions-v2-published.mjs
           node tests/predictions-v2-stress.mjs
+          node tests/interactions-v3-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -63,6 +63,21 @@
       "js": "widgets/prediccion-v2/widget.js",
       "fields": "widgets/prediccion-v2/fields.json",
       "mocks": "widgets/prediccion/mocks/index.json"
+    },
+    {
+      "id": "interacciones-v3",
+      "name": "Predicciones y encuestas",
+      "description": "Predicciones prioritarias y encuestas, con recuperación y animación final.",
+      "version": "3.0.0-branch",
+      "author": "Los Broles",
+      "category": "streamelements",
+      "width": 1920,
+      "height": 1080,
+      "html": "widgets/interacciones-v3/widget.html",
+      "css": "widgets/interacciones-v3/widget.css",
+      "js": "widgets/interacciones-v3/widget.js",
+      "fields": "widgets/interacciones-v3/fields.json",
+      "mocks": "widgets/prediccion/mocks/index.json"
     }
   ]
 }
