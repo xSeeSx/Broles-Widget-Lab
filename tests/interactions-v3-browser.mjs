@@ -59,7 +59,7 @@ try {
   await page.locator("#pollDuration").fill("120"); await page.locator("#pollBegin").click();
   await page.locator("#predictionBeginNormalButton").click();
   await wait(async () => await root().getAttribute("data-kind") === "prediction", "prediction preempts running poll");
-  assert(await frame().locator(".progress-bar-multiplier:visible").count() > 0);
+  await wait(async () => await frame().locator(".progress-bar-multiplier:visible").count() > 0, "prediction keeps its multipliers after entrance");
   await page.locator("#predictionLockButton").click();
   await wait(async () => await root().getAttribute("data-phase") === "locked", "prediction lock remains visible first");
   await wait(async () => await root().getAttribute("data-kind") === "poll", "hidden prediction yields to poll", 18000);
