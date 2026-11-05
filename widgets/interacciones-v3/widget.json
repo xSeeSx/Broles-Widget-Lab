@@ -1,0 +1,15 @@
+{
+  "id": "interacciones-v3",
+  "name": "Predicciones y encuestas",
+  "description": "Predicciones prioritarias y encuestas, con recuperación y animación final.",
+  "version": "3.0.0-branch",
+  "author": "Los Broles",
+  "category": "streamelements",
+  "width": 1920,
+  "height": 1080,
+  "html": "widget.html",
+  "css": "widget.css",
+  "js": "widget.js",
+  "fields": "fields.json",
+  "mocks": "../prediccion/mocks/index.json"
+}

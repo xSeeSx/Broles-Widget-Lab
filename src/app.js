@@ -7,6 +7,7 @@ import {
 import { createSEStoreHost } from "./harness/se-store-host.js";
 import { predictionEvent } from "./harness/prediction-contract.js";
 import { normalizePrediction, reducePrediction, eventTransition, presentationFor } from "./predictions/state.mjs?v=2";
+import { createPollLab } from "./harness/poll-lab.mjs";
 import { initializeOBSView } from "./obs-view.js";
 
 const LAB_SOURCE = "losbroles-widget-lab";
@@ -182,6 +183,7 @@ let seStoreHost;
 let predictionWindowTimer = null;
 let resultSceneScenarioId = 0;
 let obsView;
+let pollLab = null;
 
 function initializeSEStore() {
   let storage;
@@ -201,6 +203,8 @@ async function init() {
   bindElements();
   setupCollapsibleSections();
   bindEvents();
+  pollLab = createPollLab({ onChange: () => postToWidgetFrames({ source: LAB_SOURCE, type: "WORKER_V3_STATE", payload: buildBridgeV3Snapshot() }) });
+  pollLab.mount(document);
   initializeSEStore();
   obsView = initializeOBSView({
     onResize: applyResponsiveMode,
@@ -597,7 +601,8 @@ function setupCollapsibleSections() {
 function focusWidgetControls(widgetId) {
   const section = document.querySelector(".prediction-panel");
   const content = section.querySelector(".panel-content");
-  const expanded = ["prediccion", "prediccion-v2"].includes(widgetId);
+  document.querySelector(".poll-panel").hidden = widgetId !== "interacciones-v3";
+  const expanded = ["prediccion", "prediccion-v2", "interacciones-v3"].includes(widgetId);
   content.hidden = !expanded;
   section.classList.toggle("is-collapsed", !expanded);
   section.querySelector(".panel-toggle").setAttribute("aria-expanded", String(expanded));
@@ -2756,7 +2761,7 @@ function emitTwitchPredictionPayload(payload) {
 }
 
 function mirrorPredictionPayloadToWorkerForActiveWidget(payload, sourceLabel) {
-  if (!["prediccion", "prediccion-v2"].includes(state.selectedWidget?.id)) {
+  if (!["prediccion", "prediccion-v2", "interacciones-v3"].includes(state.selectedWidget?.id)) {
     return;
   }
 
@@ -2781,6 +2786,12 @@ function buildBridgeV2Snapshot() {
     server_now: new Date().toISOString(),
     sync: { status: "ready", source: "lab-helix-eventsub", last_verified_at: new Date().toISOString(), eventsub_connected: true },
     prediction: cloneJson(state.worker.bridgeV2.prediction), presentation: presentationFor(state.worker.bridgeV2.prediction) };
+}
+
+function buildBridgeV3Snapshot() {
+  const base = buildBridgeV2Snapshot();
+  return { ...base, protocol_version: 3, revision: base.revision + (pollLab?.revision || 0),
+    poll: cloneJson(pollLab?.poll || null), poll_sync: { ...base.sync } };
 }
 
 function recordBridgeV2Payload(payload) {
@@ -2813,6 +2824,7 @@ function resetBridgeV2() {
   state.worker.helixV2 = null;
   // A reset is a confirmed, versioned empty state, not merely an erased client timer.
   postToWidgetFrames({ source: LAB_SOURCE, type: "WORKER_V2_STATE", payload: buildBridgeV2Snapshot() });
+  postToWidgetFrames({ source: LAB_SOURCE, type: "WORKER_V3_STATE", payload: buildBridgeV3Snapshot() });
 }
 
 function summarizePredictionPayload(payload) {
@@ -2891,6 +2903,7 @@ function inferPredictionStatusFromPayload(payload) {
 function buildWorkerPredictionStateSnapshot() {
   return {
     bridgeV2: buildBridgeV2Snapshot(),
+    bridgeV3: buildBridgeV3Snapshot(),
     currentPrediction: cloneJson(state.prediction.currentPrediction),
     predictionHistory: cloneJson(state.prediction.predictionHistory.map((item) => item.payload)),
     lastPredictionPayload: cloneJson(state.prediction.lastPredictionPayload),
@@ -3059,6 +3072,7 @@ function postWorkerBroadcast(type, payload, label, options = {}) {
     type,
     payload,
     bridgeV2: buildBridgeV2Snapshot(),
+    bridgeV3: buildBridgeV3Snapshot(),
     recordPrediction: false
   }, { target });
 
@@ -3463,12 +3477,12 @@ function handleWidgetMessage(event) {
   if (data.type === "LOG") {
     const prefix = data.overlayId ? `[${data.overlayId}] ` : "";
     writeLog(data.level || "log", "widget", `${prefix}${data.message || ""}`, data.data);
-  } else if (data.type === "WORKER_V2_SYNC_REQUEST") {
+  } else if (["WORKER_V2_SYNC_REQUEST", "WORKER_V3_SYNC_REQUEST"].includes(data.type)) {
     const overlayId = ["A", "B"].find((id) => getOverlayFrame(id)?.contentWindow === event.source);
     if (getTargetFrameResult(overlayId).frames.length) {
       reconcileBridgeV2FromHelix();
-      postToWidgetFrames({ source: LAB_SOURCE, type: "WORKER_V2_STATE",
-        connectionId: data.connectionId, payload: { ...buildBridgeV2Snapshot(), request_id: data.requestId } }, { target: overlayId });
+      postToWidgetFrames({ source: LAB_SOURCE, type: data.type === "WORKER_V3_SYNC_REQUEST" ? "WORKER_V3_STATE" : "WORKER_V2_STATE",
+        connectionId: data.connectionId, payload: { ...(data.type === "WORKER_V3_SYNC_REQUEST" ? buildBridgeV3Snapshot() : buildBridgeV2Snapshot()), request_id: data.requestId } }, { target: overlayId });
     }
   } else if (data.type === "WORKER_WS_LOG") {
     appendWorkerConnectionLog(data.entry || {});

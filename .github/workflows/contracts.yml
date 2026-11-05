@@ -16,9 +16,12 @@ jobs:
       - run: node tests/contracts.mjs
       - run: node --test tests/predictions-v2-recovery.test.mjs
       - run: node scripts/build-predictions.mjs --check
+      - run: node scripts/build-interactions.mjs --check
+      - run: node --test tests/interactions-v3-recovery.test.mjs
+      - run: node --test tests/poll-lab.test.mjs
   browser-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +34,7 @@ jobs:
           python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/widget-lab-http.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid"' EXIT
+          node tests/interactions-v3-browser.mjs
           node tests/browser-smoke.mjs
           node tests/predictions-v2-recovery-browser.mjs
           node tests/predictions-v2-clock.mjs

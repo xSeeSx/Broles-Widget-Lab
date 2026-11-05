@@ -39,6 +39,26 @@
           </details>
         </section>
 
+        <section class="panel-section poll-panel" hidden aria-label="Encuestas" data-panel-title="Encuestas" data-start-collapsed="false">
+          <h2>Encuestas</h2>
+          <p>Votos totales, sin multiplicador. La predicción tiene prioridad mientras sea visible.</p>
+          <label><span class="field-label">Pregunta</span><input id="pollTitle" class="text-input" maxlength="60" value="¿A qué jugamos después?"></label>
+          <label><span class="field-label">Duración (segundos)</span><input id="pollDuration" class="text-input" type="number" min="15" max="1800" value="30"></label>
+          <label><span class="field-label">Opciones</span><select id="pollChoiceCount" class="select-input"><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+          <div id="pollRow0"><label><span class="field-label">Opción 1</span><input id="pollName0" class="text-input" maxlength="25" value="Juego 1"></label><label><span class="field-label">Votos acumulados</span><input id="pollVotes0" class="text-input" type="number" min="0" value="0"></label></div>
+          <div id="pollRow1"><label><span class="field-label">Opción 2</span><input id="pollName1" class="text-input" maxlength="25" value="Juego 2"></label><label><span class="field-label">Votos acumulados</span><input id="pollVotes1" class="text-input" type="number" min="0" value="0"></label></div>
+          <div id="pollRow2" hidden><label><span class="field-label">Opción 3</span><input id="pollName2" class="text-input" maxlength="25" value="Juego 3"></label><label><span class="field-label">Votos acumulados</span><input id="pollVotes2" class="text-input" type="number" min="0" value="0"></label></div>
+          <div id="pollRow3" hidden><label><span class="field-label">Opción 4</span><input id="pollName3" class="text-input" maxlength="25" value="Juego 4"></label><label><span class="field-label">Votos acumulados</span><input id="pollVotes3" class="text-input" type="number" min="0" value="0"></label></div>
+          <div id="pollRow4" hidden><label><span class="field-label">Opción 5</span><input id="pollName4" class="text-input" maxlength="25" value="Juego 5"></label><label><span class="field-label">Votos acumulados</span><input id="pollVotes4" class="text-input" type="number" min="0" value="0"></label></div>
+          <div class="button-stack">
+            <button id="pollBegin" type="button">Iniciar encuesta</button>
+            <button id="pollSendVotes" type="button">Enviar votos</button>
+            <button id="pollEnd" type="button" class="secondary-button">Terminar ahora</button>
+            <button id="pollReset" type="button" class="secondary-button">Reiniciar encuesta</button>
+          </div>
+          <p id="pollStatus" role="status">Sin encuesta</p>
+        </section>
+
         <section class="panel-section prediction-panel" aria-label="Prediction Lab" data-panel-title="Prediction Lab" data-start-collapsed="true">
           <h2>Prediction Lab</h2>
           <div class="prediction-actions" aria-label="Acciones de predicción">
