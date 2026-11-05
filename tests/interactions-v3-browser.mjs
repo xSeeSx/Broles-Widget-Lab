@@ -30,6 +30,7 @@ try {
   assert.equal(await frame().locator(".progress-bar-multiplier:visible").count(), 0);
   assert.equal(await frame().locator(".progress-bar-users").first().getAttribute("title"), "Votos");
   await wait(async () => (await frame().locator(".progress-bar-users-text").first().textContent()).trim() === "20", "submitted total votes arrive");
+  await wait(async () => frame().locator(".prediction-child").evaluateAll(nodes => nodes.every(node => Number(getComputedStyle(node).opacity) >= .999)), "poll entrance completes before measuring geometry");
   const metricGeometry = await frame().locator(".prediction-child").first().evaluate(node => {
     const metric = node.querySelector(".progress-bar-users").getBoundingClientRect();
     const bar = node.querySelector(".progress-bar").getBoundingClientRect();
