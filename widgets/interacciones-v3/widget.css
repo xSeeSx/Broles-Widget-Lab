@@ -65,12 +65,6 @@ body {
   text-shadow: #212121 0px 0px 5px;
 }
 
-.prediction-time-text {
-  padding-right: 30px;
-}
-
-
-
 .progress-bar {
   position: relative;
   background-color: rgb(0,0,0,0);
@@ -301,6 +295,14 @@ body {
 /* v2: preserve the original presentation above; add reliable state cleanup. */
 html { background: transparent; }
 body { width: min(960px, calc(100vw - 200px)); }
+.interaction-stage {
+  width: 100%;
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 1px 3px rgba(0, 0, 0, .85)) drop-shadow(0 0 7px rgba(0, 0, 0, .55));
+  transition: opacity var(--switch-duration, 180ms) ease-in-out;
+}
+.interaction-stage.is-switching { opacity: 0; }
+.prediction-overlay.interaction-enter { animation: interactionEnter var(--switch-duration, 180ms) ease-out both; }
+@keyframes interactionEnter { from { opacity: 0; } to { opacity: 1; } }
 .prediction-overlay[hidden] { display: none !important; }
 .prediction-title-text { overflow-wrap: anywhere; }
 .prediction-time-text { font-size: 28px; font-weight: 800; letter-spacing: -2px; }
@@ -342,7 +344,8 @@ body { width: min(960px, calc(100vw - 200px)); }
 .prediction-children.slideOut { animation-delay: var(--exit-delay, 0ms); }
 .prediction-overlay.is-exiting { animation: fadeOut .7s ease-in forwards; animation-delay: var(--exit-delay, 0ms) !important; }
 @media (prefers-reduced-motion: reduce) {
-  .fadeIn, .slideIn, .heartbeat { animation: none; }
+  .fadeIn, .slideIn, .heartbeat, .prediction-overlay.interaction-enter { animation: none; }
+  .interaction-stage { transition: none; }
   .prediction-child, .prediction-time-text { transition: none !important; }
   .prediction-child.is-loser { animation: none; opacity: 0; }
   .prediction-child.is-winner { animation: none; left: var(--winner-left) !important; width: var(--winner-width) !important; }
@@ -352,3 +355,8 @@ body { width: min(960px, calc(100vw - 200px)); }
 }
 
 .prediction-overlay[data-kind="poll"] .progress-bar-multiplier { visibility: hidden; }
+.vote-check {
+  width: .85em;
+  height: .85em;
+  vertical-align: -.04em;
+}

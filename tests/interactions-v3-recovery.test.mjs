@@ -36,7 +36,7 @@ class Node {
 function fixture(cached = null) {
   let wall = START, monotonic = 0, identity = 0, timerId = 0;
   const timers = new Map(), intervals = [], sockets = [], writes = [];
-  const elements = new Map([".prediction-overlay", ".prediction-children", ".prediction-title-text", ".prediction-time-text"].map(selector => [selector, new Node()]));
+  const elements = new Map([".interaction-stage", ".prediction-overlay", ".prediction-children", ".prediction-title-text", ".prediction-time-text"].map(selector => [selector, new Node()]));
   const window = new Target();
   window.SE_API = { store: { get: async () => cached, set: (_key, value) => { writes.push(value); } } };
   const document = Object.assign(new Target(), { querySelector: selector => elements.get(selector), createElement: () => new Node(), hidden: false });
@@ -108,8 +108,13 @@ test("a visible prediction preempts poll and hidden locked prediction releases i
 test("new prediction clears every poll winner node and its animation geometry", () => {
   const f = fixture(); f.api.receive(pollPacket(f, { status: "completed", endedAt: START - 6000 }));
   const children = f.elements.get(".prediction-children"); assert(children.children[0].classList.contains("is-winner"));
+  assert.equal(f.title(), "🏆 ¿Qué juego? 🏆");
   f.api.receive(pollPacket(f, { predictionStatus: "active", revision: 12 }));
+  assert.equal(f.elements.get(".prediction-overlay").dataset.kind, "poll");
+  assert(f.elements.get(".interaction-stage").classList.contains("is-switching"));
+  f.advance(180, { runTimers: true });
   assert.equal(f.elements.get(".prediction-overlay").dataset.kind, "prediction");
+  assert(!f.elements.get(".interaction-stage").classList.contains("is-switching"));
   assert(children.children.every(node => !node.classList.contains("is-winner"))); assert.equal(children.dataset.frozen, undefined);
 });
 test("tied poll winners share the final width, zero votes stay neutral", () => {

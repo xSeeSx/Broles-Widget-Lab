@@ -31,6 +31,21 @@ try {
   assert.equal(await frame().locator(".progress-bar-users").first().getAttribute("title"), "Votos");
   await wait(async () => (await frame().locator(".progress-bar-users-text").first().textContent()).trim() === "20", "submitted total votes arrive");
   await wait(async () => frame().locator(".prediction-child").evaluateAll(nodes => nodes.every(node => Number(getComputedStyle(node).opacity) >= .999)), "poll entrance completes before measuring geometry");
+  assert.equal(await frame().locator(".vote-check").count(), 3);
+  const heading = await root().evaluate(node => {
+    const center = selector => {
+      const range = document.createRange();
+      range.selectNodeContents(node.querySelector(selector));
+      const rect = range.getBoundingClientRect();
+      return rect.left + rect.width / 2;
+    };
+    document.documentElement.style.background = "white";
+    return { offset: center(".prediction-time-text") - center(".prediction-title-text"), glow: getComputedStyle(node.parentElement).filter,
+      width: node.clientWidth, bodyWidth: document.body.clientWidth };
+  });
+  assert(Math.abs(heading.offset) < 2, "Timer and question share a center");
+  assert(heading.glow.includes("drop-shadow"), "The widget has one shared contrast halo");
+  assert.equal(heading.width, heading.bodyWidth, "The shared halo does not shrink the bars");
   const metricGeometry = await frame().locator(".prediction-child").first().evaluate(node => {
     const metric = node.querySelector(".progress-bar-users").getBoundingClientRect();
     const bar = node.querySelector(".progress-bar").getBoundingClientRect();
@@ -57,6 +72,15 @@ try {
   await wait(async () => !await root().isVisible(), "final poll disappears at original deadline", 7000);
 
   await page.locator("#pollDuration").fill("120"); await page.locator("#pollBegin").click();
+  await wait(async () => await root().getAttribute("data-kind") === "poll", "second poll is visible before preemption");
+  await root().evaluate(node => {
+    const stage = node.parentElement;
+    window.handoffs = [];
+    new MutationObserver(() => {
+      if (stage.classList.contains("is-switching")) window.handoffs.push("out:" + node.dataset.kind);
+      if (node.classList.contains("interaction-enter")) window.handoffs.push("in:" + node.dataset.kind);
+    }).observe(stage, { attributes: true, subtree: true, attributeFilter: ["class", "data-kind"] });
+  });
   await page.locator("#predictionBeginNormalButton").click();
   await wait(async () => await root().getAttribute("data-kind") === "prediction", "prediction preempts running poll");
   await wait(async () => await frame().locator(".progress-bar-multiplier:visible").count() > 0, "prediction keeps its multipliers after entrance");
@@ -69,9 +93,13 @@ try {
   await page.locator("#predictionResolveWinnerButton").click();
   await wait(async () => await root().getAttribute("data-kind") === "prediction" && await root().getAttribute("data-phase") === "resolved", "prediction final preempts poll again");
   await wait(async () => await root().getAttribute("data-kind") === "poll", "poll returns after prediction final expires", 13000);
+  const handoffs = await root().evaluate(() => window.handoffs);
+  assert(handoffs.includes("out:poll"), "Poll fades out before prediction replaces it");
+  assert(handoffs.includes("in:poll"), "Poll fades in after prediction finishes its exit");
   await page.locator("#pollVotes0").fill("30"); await page.locator("#pollVotes1").fill("10"); await page.locator("#pollSendVotes").click();
   await page.locator("#pollEnd").click();
   await wait(async () => await frame().locator(".is-winner").count() === 1, "single poll winner uses final animation", 6000);
+  assert.match(await frame().locator(".prediction-title-text").textContent(), /^🏆 .+ 🏆$/u);
   await page.waitForTimeout(1100);
   const winner = await frame().locator(".is-winner").evaluate(node => ({ width: node.getBoundingClientRect().width, parent: node.parentElement.clientWidth,
     label: getComputedStyle(node.querySelector(".progress-bar-text")).transform }));

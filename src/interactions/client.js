@@ -1,4 +1,4 @@
-// Concatenated with the shared reducer by scripts/build-predictions.mjs.
+// Concatenated with the shared reducer by scripts/build-interactions.mjs.
 const DEFAULT_URL = "wss://losbroles.lessergio.workers.dev/ws/v3?broadcaster_id=133649243";
 const CHANNEL = "133649243";
 const STORE_KEY = "brolesInteractions133649243v3";
@@ -6,6 +6,9 @@ const MAX_SYNC_AGE_MS = 5000;
 // Local choreography, independent of the bridge protocol and absolute expiry.
 const RESULT_MOTION = Object.freeze({ fadeMs: 800, overlapMs: 250, expandMs: 1000 });
 const winnerStartsAtMs = POLICY.fadeLosersAtMs + RESULT_MOTION.fadeMs - RESULT_MOTION.overlapMs;
+const SWITCH_MS = 180;
+const stage = document.querySelector(".interaction-stage");
+stage.style.setProperty("--switch-duration", SWITCH_MS + "ms");
 const overlay = document.querySelector(".prediction-overlay");
 const children = document.querySelector(".prediction-children");
 const title = document.querySelector(".prediction-title-text");
@@ -27,6 +30,7 @@ let clockAnchor = null;
 let lastMessage = 0;
 let lastSync = -Infinity;
 let lastView = "";
+let switchAt = null;
 let loaded = false;
 let fontsReady = !document.fonts?.load;
 const requests = new Map();
@@ -82,6 +86,8 @@ function prepareFonts() {
 
 function hide() {
   overlay.hidden = true;
+  switchAt = null;
+  stage.classList.remove("is-switching");
   overlay.className = "prediction-overlay";
   overlay.removeAttribute("data-prediction-id");
   title.textContent = "";
@@ -109,12 +115,15 @@ function renderClock(view, prediction, now) {
   if (beat) beat.currentTime = ((now - Date.parse(prediction.locks_at)) % 1000 + 1000) % 1000;
 }
 
-function createOutcome(outcome, index, animate) {
+function createOutcome(outcome, index, animate, kind) {
   const node = document.createElement("div");
   node.className = "prediction-child";
   node.dataset.outcomeId = outcome.id;
+  const countIcon = kind === "poll"
+    ? '<svg class="vote-check" viewBox="0 0 12 12" aria-hidden="true"><path d="m2 6 3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    : '<i class="fa-regular fa-user" aria-hidden="true"></i>';
   // Only this fixed template is HTML. All Twitch titles and numbers use textContent.
-  node.innerHTML = '<div class="progress-bar-stats"><div class="progress-bar-stats-child"><div class="progress-bar-text"></div></div></div><div class="progress-bar"><div class="prediction-outcome progress-bar-foreground-1"><div class="outcome-shade"></div></div><div class="progress-bar-percent-text"></div></div><div class="progress-bar-multiplier"><i class="fa-regular fa-star" aria-hidden="true"></i> <span class="multiplier-text"></span></div><div class="progress-bar-users"><span class="progress-bar-users-text"><i class="fa-regular fa-user" aria-hidden="true"></i> </span></div>';
+  node.innerHTML = '<div class="progress-bar-stats"><div class="progress-bar-stats-child"><div class="progress-bar-text"></div></div></div><div class="progress-bar"><div class="prediction-outcome progress-bar-foreground-1"><div class="outcome-shade"></div></div><div class="progress-bar-percent-text"></div></div><div class="progress-bar-multiplier"><i class="fa-regular fa-star" aria-hidden="true"></i> <span class="multiplier-text"></span></div><div class="progress-bar-users"><span class="progress-bar-users-text">' + countIcon + ' </span></div>';
   if (animate) {
     node.classList.add("slideIn");
     node.style.animationDelay = (POLICY.entryMs + (index + 1) * 150) + "ms";
@@ -134,6 +143,25 @@ function render() {
   const { kind, view, entity: prediction, winners } = selected;
   const identity = kind + ":" + prediction.id;
   const key = identity + ":" + view.phase;
+  const changingKind = !overlay.hidden && overlay.dataset.kind !== kind;
+  const reducedMotion = changingKind && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const previousHideAt = Number(overlay.dataset.hideAt);
+  if (changingKind && !reducedMotion && (!previousHideAt || now < previousHideAt)) {
+    if (switchAt === null) {
+      switchAt = mono() + SWITCH_MS;
+      stage.classList.add("is-switching");
+    }
+    const remaining = switchAt - mono();
+    if (remaining > 0) {
+      // Resolve the current state again after fading the old content.
+      const untilExpiry = previousHideAt ? previousHideAt - now : Infinity;
+      tickTimer = setTimeout(render, Math.ceil(Math.min(remaining, untilExpiry)));
+      return;
+    }
+  }
+  const fadedOut = switchAt !== null && mono() >= switchAt;
+  switchAt = null;
+  stage.classList.remove("is-switching");
   const entering = overlay.hidden || overlay.dataset.predictionId !== identity;
   if (overlay.dataset.predictionId !== identity) {
     children.replaceChildren(); nodes.clear(); children.style.height = ""; delete children.dataset.frozen;
@@ -151,7 +179,9 @@ function render() {
     overlay.className = "prediction-overlay";
     overlay.style.animationDelay = "0s";
     const age = terminalView ? Math.max(0, now - Date.parse(prediction.ended_at)) : 0;
-    if (age < POLICY.entryMs) {
+    if (changingKind) {
+      if (!fadedOut && !reducedMotion) overlay.classList.add("interaction-enter");
+    } else if (age < POLICY.entryMs) {
       void overlay.offsetWidth;
       overlay.style.animationDelay = -age + "ms";
       overlay.classList.add("fadeIn");
@@ -166,8 +196,8 @@ function render() {
   children.classList.toggle("slideOut", exiting);
   overlay.classList.toggle("is-many", prediction.outcomes.length > 5);
   const prefix = view.phase === "resolved" ? "🏆 " : view.phase === "canceled" ? "Cancelada: " : view.phase === "locked" ? "🛑 " : "";
-  title.textContent = kind === "poll" && view.phase === "resolved"
-    ? (winners.length > 1 ? "Empate: " : winners.length === 0 ? "Sin votos: " : "🏆 ") + prediction.title
+  title.textContent = kind === "poll" && view.phase === "resolved" && winners.length !== 1
+    ? (winners.length > 1 ? "Empate: " : "Sin votos: ") + prediction.title
     : prefix + prediction.title + (view.phase === "resolved" ? " 🏆" : view.phase === "locked" ? " 🛑" : "");
   // Keep the clock's original space while fading it on lock/end.
   renderClock(view, prediction, now);
@@ -186,7 +216,7 @@ function render() {
   // a readable minimum; adding a minimum to every option distorted 25/75 splits.
   if (capacity > 0) widths.forEach((width, index) => { widths[index] -= overflow * Math.max(0, width - minimum) / capacity; });
   prediction.outcomes.forEach((outcome, index) => {
-    const node = nodes.get(outcome.id) || createOutcome(outcome, index, entering && view.phase === "active");
+    const node = nodes.get(outcome.id) || createOutcome(outcome, index, entering && !changingKind && view.phase === "active", kind);
     if (view.phase !== "active") {
       node.classList.remove("slideIn");
       node.style.animationDelay = "";
@@ -214,7 +244,6 @@ function render() {
     const multiplierWidth = node.querySelector(".progress-bar-multiplier").offsetWidth;
     node.querySelector(".progress-bar-users").style.marginRight = kind === "poll" ? "0px" : Math.max(45, multiplierWidth - 8) + "px";
     node.querySelector(".progress-bar-users").title = kind === "poll" ? "Votos" : "Usuarios";
-    node.querySelector(".progress-bar-users-text i").className = kind === "poll" ? "fa-regular fa-square-check" : "fa-regular fa-user";
   });
   if (view.phase === "resolved" && !children.dataset.frozen) {
     // Freeze existing nodes in place instead of requiring clones made by lock.
