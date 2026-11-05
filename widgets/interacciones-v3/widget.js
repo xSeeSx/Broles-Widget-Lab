@@ -196,7 +196,8 @@ function reducePoll(previous, next) {
   poll.ended_at = previous.ended_at || next.ended_at;
   for (const choice of poll.choices) {
     const known = previous.choices.find(x => x.id === choice.id);
-    if (known.votes !== null && (choice.votes === null || choice.votes < known.votes)) choice.votes = known.votes;
+    // Confirmed final totals are authoritative, including any Twitch corrections.
+    if (!pollFinal(poll.status) && known.votes !== null && (choice.votes === null || choice.votes < known.votes)) choice.votes = known.votes;
   }
   return { accepted: true, poll };
 }
