@@ -50,7 +50,8 @@ export function createPollLab({ onChange }) {
     clearTimeout(timer);
     const event = eventFor(poll);
     delete event.ends_at;
-    emit("end", { ...event, status: statusValue, ended_at: new Date().toISOString() });
+    emit("end", { ...event, status: statusValue,
+      ended_at: statusValue === "completed" ? poll.ends_at : new Date().toISOString() });
   }
   return {
     get poll() { return model.poll; }, get revision() { return revision; },

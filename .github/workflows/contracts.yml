@@ -18,6 +18,7 @@ jobs:
       - run: node scripts/build-predictions.mjs --check
       - run: node scripts/build-interactions.mjs --check
       - run: node --test tests/interactions-v3-recovery.test.mjs
+      - run: node --test tests/poll-lab.test.mjs
   browser-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 15
