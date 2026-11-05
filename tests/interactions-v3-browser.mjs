@@ -30,6 +30,14 @@ try {
   assert.equal(await frame().locator(".progress-bar-multiplier:visible").count(), 0);
   assert.equal(await frame().locator(".progress-bar-users").first().getAttribute("title"), "Votos");
   await wait(async () => (await frame().locator(".progress-bar-users-text").first().textContent()).trim() === "20", "submitted total votes arrive");
+  const metricGeometry = await frame().locator(".prediction-child").first().evaluate(node => {
+    const metric = node.querySelector(".progress-bar-users").getBoundingClientRect();
+    const bar = node.querySelector(".progress-bar").getBoundingClientRect();
+    const name = node.querySelector(".progress-bar-text").getBoundingClientRect();
+    return { metricBottom: metric.bottom, barTop: bar.top, nameTop: name.top };
+  });
+  assert(metricGeometry.metricBottom <= metricGeometry.barTop + 2, "Vote counter stays above its bar");
+  assert(metricGeometry.metricBottom < metricGeometry.nameTop, "Vote counter cannot overlap option name");
   await page.screenshot({ path: "test-results/interactions/poll-active.png" });
   await wait(async () => await root().getAttribute("data-phase") === "resolved", "poll automatically resolves at deadline without a lock phase", 17000);
   const deadline = await root().getAttribute("data-hide-at");

@@ -351,4 +351,4 @@ body { width: min(960px, calc(100vw - 200px)); }
   .prediction-overlay.is-exiting { animation: none; opacity: 0; }
 }
 
-.prediction-overlay[data-kind="poll"] .progress-bar-multiplier { display: none; }
+.prediction-overlay[data-kind="poll"] .progress-bar-multiplier { visibility: hidden; }

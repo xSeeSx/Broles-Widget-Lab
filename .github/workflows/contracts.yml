@@ -33,6 +33,7 @@ jobs:
           python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/widget-lab-http.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid"' EXIT
+          node tests/interactions-v3-browser.mjs
           node tests/browser-smoke.mjs
           node tests/predictions-v2-recovery-browser.mjs
           node tests/predictions-v2-clock.mjs
@@ -41,7 +42,6 @@ jobs:
           node tests/predictions-v2-browser.mjs
           node tests/predictions-v2-published.mjs
           node tests/predictions-v2-stress.mjs
-          node tests/interactions-v3-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
